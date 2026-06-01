@@ -46,7 +46,7 @@ void main() {
   if (uStyle == 2) {
     effect = vec3(0.05, 0.05, 0.06);
   } else if (uStyle == 1) {
-    vec2 step = max(sizePx, 2.0) / 4.0 / uRes;
+    vec2 step = max(sizePx, 2.0) / 2.0 / uRes;
     vec3 acc = vec3(0.0);
     float wsum = 0.0;
     for (int oy = -2; oy <= 2; oy++) {
@@ -127,7 +127,7 @@ fn fs(in: VSOut) -> @location(0) vec4f {
   if (style == 2) {
     effect = vec3f(0.05, 0.05, 0.06);
   } else if (style == 1) {
-    let step = max(sizePx, 2.0) / 4.0 / res;
+    let step = max(sizePx, 2.0) / 2.0 / res;
     var acc = vec3f(0.0);
     var wsum = 0.0;
     for (var oy = -2; oy <= 2; oy = oy + 1) {

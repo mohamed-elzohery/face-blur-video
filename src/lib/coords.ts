@@ -1,5 +1,14 @@
 import type { Box } from "./types";
 
+export interface LetterboxLayout {
+  inputSize: number;
+  scale: number;
+  scaledW: number;
+  scaledH: number;
+  padX: number;
+  padY: number;
+}
+
 export interface DetectLayout {
   detW: number;
   detH: number;
@@ -56,6 +65,40 @@ export function padBox(box: Box, frac: number): Box {
   if (x + w > 1) w = 1 - x;
   if (y + h > 1) h = 1 - y;
   return { x, y, w: Math.max(0, w), h: Math.max(0, h) };
+}
+
+export function computeLetterboxLayout(
+  encodeW: number,
+  encodeH: number,
+  inputSize = 640,
+): LetterboxLayout {
+  const scale = Math.min(inputSize / encodeW, inputSize / encodeH);
+  const scaledW = Math.round(encodeW * scale);
+  const scaledH = Math.round(encodeH * scale);
+  const padX = (inputSize - scaledW) / 2;
+  const padY = (inputSize - scaledH) / 2;
+  return { inputSize, scale, scaledW, scaledH, padX, padY };
+}
+
+export function letterboxBoxToNorm(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  layout: LetterboxLayout,
+  encodeW: number,
+  encodeH: number,
+): Box {
+  const ox = Math.max(0, (x - layout.padX) / layout.scale);
+  const ox2 = Math.min(encodeW, (x + w - layout.padX) / layout.scale);
+  const oy = Math.max(0, (y - layout.padY) / layout.scale);
+  const oy2 = Math.min(encodeH, (y + h - layout.padY) / layout.scale);
+  return {
+    x: ox / encodeW,
+    y: oy / encodeH,
+    w: Math.max(0, ox2 - ox) / encodeW,
+    h: Math.max(0, oy2 - oy) / encodeH,
+  };
 }
 
 export function iou(a: Box, b: Box): number {

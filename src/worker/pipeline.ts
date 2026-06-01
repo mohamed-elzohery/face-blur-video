@@ -15,6 +15,7 @@ import {
 import { STYLE_CODE, type BlurBackend, type JobConfig, type WorkerToMain } from "@/lib/types";
 import { createRenderer } from "./blur";
 import { YuNetOnnxDetector, type FaceDetector } from "./detector";
+import { YoloFaceOnnxDetector } from "./yolo-detector";
 import { PipelineError } from "./errors";
 import { FrameProcessor } from "./frameProcessor";
 import { makeOutputName, openSource } from "./io/source";
@@ -143,7 +144,10 @@ export async function runPipeline(
 
   let detector: FaceDetector;
   try {
-    detector = await YuNetOnnxDetector.create(displayWidth, displayHeight);
+    detector =
+      config.engine === "yolo"
+        ? await YoloFaceOnnxDetector.create(displayWidth, displayHeight)
+        : await YuNetOnnxDetector.create(displayWidth, displayHeight);
   } catch (err) {
     renderer.dispose();
     src.input.dispose();

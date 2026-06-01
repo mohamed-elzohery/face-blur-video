@@ -1,5 +1,5 @@
 export type BlurStyle = "mosaic" | "gaussian" | "solid";
-export type DetectorEngine = "yunet" | "blazeface";
+export type DetectorEngine = "yunet" | "yolo";
 export type BlurBackend = "webgpu" | "webgl2";
 export type DetectorEP = "webgpu" | "wasm";
 export type CapabilityTier = "webgpu" | "webgl2" | "unsupported";
@@ -66,9 +66,9 @@ export const DEFAULT_JOB_CONFIG: JobConfig = {
   style: "mosaic",
   strength: 0.6,
   sensitivity: 0.35,
-  paddingFrac: 0.3,
+  paddingFrac: 0.25,
   detectEveryN: 4,
-  engine: "yunet",
+  engine: "yolo",
 };
 
 export type MainToWorker =

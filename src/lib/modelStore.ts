@@ -1,7 +1,9 @@
 const YUNET_URL = "/models/face_detection_yunet_2026may.onnx";
+const YOLO_URL = "/models/yolov8n-face.onnx";
 const CACHE_NAME = "face-blur-models-v1";
 
 let cached: Promise<ArrayBuffer> | null = null;
+let cachedYolo: Promise<ArrayBuffer> | null = null;
 
 async function fetchModel(url: string): Promise<ArrayBuffer> {
   try {
@@ -30,4 +32,14 @@ export function loadYuNetModel(): Promise<ArrayBuffer> {
     });
   }
   return cached;
+}
+
+export function loadYoloModel(): Promise<ArrayBuffer> {
+  if (!cachedYolo) {
+    cachedYolo = fetchModel(YOLO_URL).catch((err) => {
+      cachedYolo = null;
+      throw err;
+    });
+  }
+  return cachedYolo;
 }

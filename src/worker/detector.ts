@@ -16,7 +16,7 @@ const DETECT_LONG_SIDE = 480;
 const NMS_IOU = 0.3;
 
 let envConfigured = false;
-function configureOrtEnv(): void {
+export function configureOrtEnv(): void {
   if (envConfigured) return;
   ort.env.wasm.wasmPaths = "/ort/";
   ort.env.wasm.numThreads = 1;
