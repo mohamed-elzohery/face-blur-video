@@ -1,0 +1,158 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { decideCapabilities, detectMainFeatures } from "@/lib/capabilities";
+import {
+  DEFAULT_JOB_CONFIG,
+  type BlurBackend,
+  type CapabilityReport,
+  type JobConfig,
+  type MainToWorker,
+  type WorkerToMain,
+} from "@/lib/types";
+
+export type PipelineStatus = "probing" | "ready" | "unsupported" | "error";
+export type JobStatus = "idle" | "processing" | "done" | "cancelled" | "error";
+
+export interface JobResult {
+  blob: Blob;
+  url: string;
+  mimeType: string;
+  fileName: string;
+}
+
+export interface JobState {
+  status: JobStatus;
+  progress: number;
+  framesDone: number;
+  throughputFps: number;
+  backend: BlurBackend | null;
+  codec: string | null;
+  result: JobResult | null;
+  error: string | null;
+}
+
+const INITIAL_JOB: JobState = {
+  status: "idle",
+  progress: 0,
+  framesDone: 0,
+  throughputFps: 0,
+  backend: null,
+  codec: null,
+  result: null,
+  error: null,
+};
+
+export interface UsePipeline {
+  report: CapabilityReport | null;
+  status: PipelineStatus;
+  job: JobState;
+  start: (file: File, config?: JobConfig) => void;
+  cancel: () => void;
+  reset: () => void;
+}
+
+export function usePipeline(): UsePipeline {
+  const workerRef = useRef<Worker | null>(null);
+  const durationUsRef = useRef(0);
+  const resultUrlRef = useRef<string | null>(null);
+
+  const [report, setReport] = useState<CapabilityReport | null>(null);
+  const [status, setStatus] = useState<PipelineStatus>("probing");
+  const [job, setJob] = useState<JobState>(INITIAL_JOB);
+
+  useEffect(() => {
+    const worker = new Worker(new URL("../worker/pipeline.worker.ts", import.meta.url), {
+      type: "module",
+    });
+    workerRef.current = worker;
+
+    worker.onmessage = (e: MessageEvent<WorkerToMain>) => {
+      const msg = e.data;
+      switch (msg.type) {
+        case "capabilities": {
+          const decided = decideCapabilities({ ...msg.features, ...detectMainFeatures() });
+          setReport(decided);
+          setStatus(decided.supported ? "ready" : "unsupported");
+          break;
+        }
+        case "started": {
+          durationUsRef.current = msg.durationUs;
+          setJob((j) => ({ ...j, status: "processing", backend: msg.blurBackend, codec: msg.codec }));
+          break;
+        }
+        case "progress": {
+          const dur = durationUsRef.current;
+          const progress = dur > 0 ? Math.min(1, msg.currentTimeUs / dur) : 0;
+          setJob((j) => ({
+            ...j,
+            status: "processing",
+            progress,
+            framesDone: msg.framesDone,
+            throughputFps: msg.throughputFps,
+          }));
+          break;
+        }
+        case "done": {
+          if (resultUrlRef.current) URL.revokeObjectURL(resultUrlRef.current);
+          const url = URL.createObjectURL(msg.output);
+          resultUrlRef.current = url;
+          setJob((j) => ({
+            ...j,
+            status: "done",
+            progress: 1,
+            result: { blob: msg.output, url, mimeType: msg.mimeType, fileName: msg.fileName },
+          }));
+          break;
+        }
+        case "error": {
+          setJob((j) => ({
+            ...j,
+            status: msg.code === "cancelled" ? "cancelled" : "error",
+            error: msg.message,
+          }));
+          break;
+        }
+        case "log":
+        case "modelProgress":
+          break;
+      }
+    };
+
+    worker.onerror = () => setStatus("error");
+    worker.postMessage({ type: "probe" } satisfies MainToWorker);
+
+    return () => {
+      worker.terminate();
+      workerRef.current = null;
+      if (resultUrlRef.current) {
+        URL.revokeObjectURL(resultUrlRef.current);
+        resultUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  const start = useCallback((file: File, config: JobConfig = DEFAULT_JOB_CONFIG) => {
+    if (resultUrlRef.current) {
+      URL.revokeObjectURL(resultUrlRef.current);
+      resultUrlRef.current = null;
+    }
+    durationUsRef.current = 0;
+    setJob({ ...INITIAL_JOB, status: "processing" });
+    workerRef.current?.postMessage({ type: "start", file, config } satisfies MainToWorker);
+  }, []);
+
+  const cancel = useCallback(() => {
+    workerRef.current?.postMessage({ type: "cancel" } satisfies MainToWorker);
+  }, []);
+
+  const reset = useCallback(() => {
+    if (resultUrlRef.current) {
+      URL.revokeObjectURL(resultUrlRef.current);
+      resultUrlRef.current = null;
+    }
+    setJob(INITIAL_JOB);
+  }, []);
+
+  return { report, status, job, start, cancel, reset };
+}
