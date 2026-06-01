@@ -67,7 +67,7 @@ export const DEFAULT_JOB_CONFIG: JobConfig = {
   strength: 0.6,
   sensitivity: 0.35,
   paddingFrac: 0.25,
-  detectEveryN: 4,
+  detectEveryN: 2,
   engine: "yolo",
 };
 

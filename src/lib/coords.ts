@@ -101,6 +101,12 @@ export function letterboxBoxToNorm(
   };
 }
 
+export function boxCenterDist(a: Box, b: Box): number {
+  const dx = (a.x + a.w * 0.5) - (b.x + b.w * 0.5);
+  const dy = (a.y + a.h * 0.5) - (b.y + b.h * 0.5);
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
 export function iou(a: Box, b: Box): number {
   const ax2 = a.x + a.w;
   const ay2 = a.y + a.h;

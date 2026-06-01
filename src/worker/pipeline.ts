@@ -26,9 +26,10 @@ const MIN_BLOCK_PX = 6;
 const MIN_BLOCK_FRAC = 0.07;
 const MAX_BLOCK_FRAC = 0.22;
 const TRACKER_IOU_MATCH = 0.3;
-const TRACKER_MAX_MISSES = 3;
-const TRACKER_Q_POS = 1e-3;
-const TRACKER_Q_VEL = 1e-4;
+const TRACKER_MAX_CENTER_DIST = 0.35;
+const TRACKER_MAX_MISSES = 1;
+const TRACKER_Q_POS = 6e-3;
+const TRACKER_Q_VEL = 8e-4;
 const TRACKER_MEAS_NOISE = 5e-4;
 
 export interface Cancel {
@@ -159,6 +160,7 @@ export async function runPipeline(
 
   const tracker = new KalmanTracker({
     iouMatch: TRACKER_IOU_MATCH,
+    maxCenterDist: TRACKER_MAX_CENTER_DIST,
     maxMisses: TRACKER_MAX_MISSES,
     paddingFrac: config.paddingFrac,
     qPos: TRACKER_Q_POS,

@@ -1,9 +1,10 @@
 import type { Box, ScoredBox } from "@/lib/types";
-import { iou, padBox } from "@/lib/coords";
+import { boxCenterDist, iou, padBox } from "@/lib/coords";
 import { type KalmanState, kalmanCreate, kalmanPredict, kalmanUpdate } from "./kalman";
 
 export interface TrackerOptions {
   iouMatch: number;
+  maxCenterDist: number;
   maxMisses: number;
   paddingFrac: number;
   qPos: number;
@@ -43,7 +44,7 @@ export class KalmanTracker {
   }
 
   update(detections: ScoredBox[]): void {
-    const { measNoise, iouMatch, maxMisses } = this.opts;
+    const { measNoise, iouMatch, maxCenterDist, maxMisses } = this.opts;
     const existing = this.tracks;
     const matched = new Set<number>();
     const dets = [...detections].sort((a, b) => b.score - a.score);
@@ -51,12 +52,18 @@ export class KalmanTracker {
 
     for (let di = 0; di < dets.length; di++) {
       let best = -1;
-      let bestIoU = iouMatch;
+      let bestScore = -1;
       for (let ti = 0; ti < existing.length; ti++) {
         if (matched.has(ti)) continue;
-        const v = iou(dets[di], trackBox(existing[ti]));
-        if (v >= bestIoU) {
-          bestIoU = v;
+        const trackB = trackBox(existing[ti]);
+        const v = iou(dets[di], trackB);
+        const cd = boxCenterDist(dets[di], trackB);
+        const iouHit = v >= iouMatch;
+        const distHit = cd <= maxCenterDist;
+        if (!iouHit && !distHit) continue;
+        const score = iouHit ? v : (1 - cd / maxCenterDist) * iouMatch * 0.9;
+        if (score > bestScore) {
+          bestScore = score;
           best = ti;
         }
       }
