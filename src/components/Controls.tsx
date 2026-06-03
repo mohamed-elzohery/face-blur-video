@@ -2,10 +2,14 @@
 
 import type { BlurStyle, JobConfig } from "@/lib/types";
 
-const STYLES: { value: BlurStyle; label: string }[] = [
-  { value: "mosaic", label: "Mosaic" },
-  { value: "gaussian", label: "Gaussian" },
-  { value: "solid", label: "Solid" },
+const STYLE_OPTIONS: {
+  value: BlurStyle;
+  title: string;
+  subtitle: string;
+  thumbnail: string;
+}[] = [
+  { value: "gaussian", title: "Gaussian Blur", subtitle: "Smooth blur", thumbnail: "/styles/gaussian.png" },
+  { value: "mosaic", title: "Pixelated", subtitle: "Pixel effect", thumbnail: "/styles/pixelated.png" },
 ];
 
 export function Controls({
@@ -20,28 +24,47 @@ export function Controls({
   return (
     <div className="controls">
       <div className="control">
-        <span className="control-label">Redaction style</span>
-        <div className="seg-group" role="group" aria-label="Redaction style">
-          {STYLES.map((s) => (
-            <button
-              key={s.value}
-              type="button"
-              className={`seg ${config.style === s.value ? "seg-active" : ""}`}
-              disabled={disabled}
-              onClick={() => onChange({ ...config, style: s.value })}
-            >
-              {s.label}
-            </button>
-          ))}
+        <span className="control-label" id="redaction-style-label">
+          Blur style
+        </span>
+        <div className="style-cards" role="radiogroup" aria-labelledby="redaction-style-label">
+          {STYLE_OPTIONS.map((opt) => {
+            const selected = config.style === opt.value;
+            return (
+              <label
+                key={opt.value}
+                className={`style-card ${selected ? "style-card-selected" : ""}`}
+                data-style={opt.value}
+              >
+                <input
+                  type="radio"
+                  name="redaction-style"
+                  className="style-card-radio-input"
+                  value={opt.value}
+                  checked={selected}
+                  disabled={disabled}
+                  onChange={() => onChange({ ...config, style: opt.value })}
+                />
+                <span
+                  className="style-card-thumb"
+                  style={{ backgroundImage: `url(${opt.thumbnail})` }}
+                  aria-hidden="true"
+                />
+                <span className="style-card-text">
+                  <span className="style-card-title">{opt.title}</span>
+                  <span className="style-card-subtitle">{opt.subtitle}</span>
+                </span>
+                <span className="style-card-dot" aria-hidden="true" />
+              </label>
+            );
+          })}
         </div>
-        {config.style === "gaussian" && (
-          <p className="hint">A soft blur looks gentler, but mosaic and solid are harder to reverse.</p>
-        )}
+        <p className="hint">A soft blur looks gentler, but pixelation is harder to reverse.</p>
       </div>
 
       <div className="control">
         <label className="control-label" htmlFor="strength">
-          Strength <span className="control-value">{Math.round(config.strength * 100)}%</span>
+          Intensity <span className="control-value">{Math.round(config.strength * 100)}%</span>
         </label>
         <input
           id="strength"
@@ -50,7 +73,7 @@ export function Controls({
           max={1}
           step={0.05}
           value={config.strength}
-          disabled={disabled || config.style === "solid"}
+          disabled={disabled}
           onChange={(e) => onChange({ ...config, strength: Number(e.target.value) })}
         />
       </div>

@@ -9,7 +9,10 @@ const URL = process.env.SMOKE_URL ?? "http://localhost:3001";
 const INPUT = "tests/fixtures/face.mp4";
 const W = 720;
 const H = 720;
-const STYLES = ["Mosaic", "Gaussian", "Solid"];
+const STYLES = [
+  { name: "Gaussian Blur", value: "gaussian" },
+  { name: "Pixelated", value: "mosaic" },
+];
 
 function rawFrame(path) {
   return new Uint8Array(
@@ -67,7 +70,7 @@ for (const style of STYLES) {
   await page.goto(URL, { waitUntil: "domcontentloaded" });
   await page.waitForSelector(".cap-badge", { timeout: 15000 });
   await page.setInputFiles('input[type="file"]', INPUT);
-  await page.getByRole("button", { name: style, exact: true }).click();
+  await page.locator(`.style-card[data-style="${style.value}"]`).click();
   await page.getByRole("button", { name: "Blur faces" }).click();
   await page.waitForSelector(".preview-video", { timeout: 90000 });
   const b64 = await page.evaluate(async () => {
@@ -80,7 +83,7 @@ for (const style of STYLES) {
   });
   await page.close();
 
-  const out = `/tmp/style-${style}.mp4`;
+  const out = `/tmp/style-${style.value}.mp4`;
   writeFileSync(out, Buffer.from(b64, "base64"));
   const outFrame = rawFrame(out);
   const gradOut = meanGradient(outFrame, fx0, fy0, fx1, fy1);
@@ -91,7 +94,7 @@ for (const style of STYLES) {
   const ok = blurred && masked && errors.length === 0;
   if (!ok) failures++;
   console.log(
-    `${style}: gradIn=${faceGradIn.toFixed(2)} gradOut=${gradOut.toFixed(2)} faceMad=${faceMad.toFixed(1)} cornerMad=${cornerMad.toFixed(1)} -> ${ok ? "PASS" : "FAIL"}${errors.length ? " errors:" + errors.join("|") : ""}`,
+    `${style.name}: gradIn=${faceGradIn.toFixed(2)} gradOut=${gradOut.toFixed(2)} faceMad=${faceMad.toFixed(1)} cornerMad=${cornerMad.toFixed(1)} -> ${ok ? "PASS" : "FAIL"}${errors.length ? " errors:" + errors.join("|") : ""}`,
   );
 }
 

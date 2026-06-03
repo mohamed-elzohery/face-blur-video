@@ -310,39 +310,107 @@ a {
   color: var(--fg-dim);
 }
 
-.seg-group {
-  display: inline-flex;
+.style-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.style-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
   background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 3px;
-  gap: 3px;
-  width: fit-content;
-}
-
-.seg {
-  appearance: none;
-  border: none;
-  background: transparent;
-  color: var(--fg-dim);
-  font-size: 13.5px;
-  font-weight: 600;
-  padding: 7px 16px;
-  border-radius: 7px;
   cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease;
+  transition: border-color 0.12s ease, background 0.12s ease;
 }
 
-.seg:hover:not(:disabled) {
+.style-card:hover {
+  border-color: var(--fg-dim);
+}
+
+.style-card-radio-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.style-card-selected,
+.style-card:has(.style-card-radio-input:checked) {
+  border-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 12%, var(--bg));
+}
+
+.style-card:has(.style-card-radio-input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.style-card-thumb {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  background-color: var(--bg-elev-2);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border: 1px solid var(--border);
+}
+
+.style-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.style-card-title {
+  font-size: 14px;
+  font-weight: 600;
   color: var(--fg);
 }
 
-.seg-active {
-  background: var(--accent-strong);
-  color: #fff;
+.style-card-subtitle {
+  font-size: 12.5px;
+  color: var(--fg-dim);
 }
 
-.seg:disabled {
+.style-card-dot {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  position: relative;
+}
+
+.style-card-selected .style-card-dot,
+.style-card:has(.style-card-radio-input:checked) .style-card-dot {
+  border-color: var(--ok);
+}
+
+.style-card-selected .style-card-dot::after,
+.style-card:has(.style-card-radio-input:checked) .style-card-dot::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.style-card:has(.style-card-radio-input:disabled) {
   opacity: 0.5;
   cursor: not-allowed;
 }
