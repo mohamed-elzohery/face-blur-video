@@ -101,6 +101,19 @@ export function letterboxBoxToNorm(
   };
 }
 
+export function letterboxPointToNorm(
+  x: number,
+  y: number,
+  layout: LetterboxLayout,
+  encodeW: number,
+  encodeH: number,
+): [number, number] {
+  return [
+    (x - layout.padX) / layout.scale / encodeW,
+    (y - layout.padY) / layout.scale / encodeH,
+  ];
+}
+
 export function boxCenterDist(a: Box, b: Box): number {
   const dx = (a.x + a.w * 0.5) - (b.x + b.w * 0.5);
   const dy = (a.y + a.h * 0.5) - (b.y + b.h * 0.5);

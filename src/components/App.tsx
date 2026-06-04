@@ -9,13 +9,14 @@ import { UnsupportedNotice } from "./UnsupportedNotice";
 import { Dropzone } from "./Dropzone";
 import { Controls } from "./Controls";
 import { PreviewPlayer } from "./PreviewPlayer";
+import { FaceGallery } from "./FaceGallery";
 
 function formatMB(bytes: number): string {
   return (bytes / 1_000_000).toFixed(1);
 }
 
 export default function App() {
-  const { report, status, job, start, cancel, reset } = usePipeline();
+  const { report, status, job, start, scan, blurSelected, cancel, reset } = usePipeline();
   const [file, setFile] = useState<File | null>(null);
   const [config, setConfig] = useState<JobConfig>(DEFAULT_JOB_CONFIG);
   const originalUrlRef = useRef<string | null>(null);
@@ -85,14 +86,38 @@ export default function App() {
               )}
               <Controls config={config} onChange={setConfig} />
               <div className="row">
-                <button className="btn btn-primary" onClick={() => start(file, config)}>
-                  Blur faces
+                <button className="btn btn-primary" onClick={() => scan(file, config)}>
+                  Scan &amp; choose faces
+                </button>
+                <button className="btn" onClick={() => start(file, config)}>
+                  Blur all faces
                 </button>
                 <button className="btn" onClick={onReset}>
                   Choose another
                 </button>
               </div>
             </div>
+          )}
+
+          {job.status === "scanning" && (
+            <div className="card">
+              <p className="status">Finding faces&hellip; {Math.round(job.scanProgress * 100)}%</p>
+              <progress className="bar" max={1} value={job.scanProgress} />
+              <div className="row">
+                <button className="btn" onClick={cancel}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {job.status === "selecting" && file && (
+            <FaceGallery
+              faces={job.faces}
+              thumbnails={job.faceThumbs}
+              onConfirm={(keepIds) => blurSelected(file, keepIds, config)}
+              onBack={reset}
+            />
           )}
 
           {processing && (

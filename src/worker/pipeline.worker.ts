@@ -1,7 +1,19 @@
 import { probeFeatures } from "@/lib/capabilities";
 import type { MainToWorker, WorkerToMain } from "@/lib/types";
 import { PipelineError } from "./errors";
-import { runPipeline, type Cancel } from "./pipeline";
+import { runBlurSelected, runPipeline, type Cancel } from "./pipeline";
+import { runScan } from "./scan";
+
+function toError(err: unknown): WorkerToMain {
+  const code = err instanceof PipelineError ? err.code : "pipeline-error";
+  const recoverable = err instanceof PipelineError ? err.recoverable : false;
+  return {
+    type: "error",
+    code,
+    message: err instanceof Error ? err.message : "Unexpected processing error.",
+    recoverable,
+  };
+}
 
 interface WorkerScope {
   postMessage(message: unknown, transfer?: Transferable[]): void;
@@ -27,16 +39,27 @@ ctx.onmessage = async (e: MessageEvent<MainToWorker>) => {
     case "start": {
       cancel = { cancelled: false };
       try {
-        await runPipeline(msg.file, msg.config, (m) => post(m), cancel);
+        await runPipeline(msg.file, msg.config, (m, t) => post(m, t), cancel);
       } catch (err) {
-        const code = err instanceof PipelineError ? err.code : "pipeline-error";
-        const recoverable = err instanceof PipelineError ? err.recoverable : false;
-        post({
-          type: "error",
-          code,
-          message: err instanceof Error ? err.message : "Unexpected processing error.",
-          recoverable,
-        });
+        post(toError(err));
+      }
+      break;
+    }
+    case "scan": {
+      cancel = { cancelled: false };
+      try {
+        await runScan(msg.file, msg.config, (m, t) => post(m, t), cancel);
+      } catch (err) {
+        post(toError(err));
+      }
+      break;
+    }
+    case "blurSelected": {
+      cancel = { cancelled: false };
+      try {
+        await runBlurSelected(msg.file, msg.config, (m, t) => post(m, t), cancel, msg.keepCentroids);
+      } catch (err) {
+        post(toError(err));
       }
       break;
     }

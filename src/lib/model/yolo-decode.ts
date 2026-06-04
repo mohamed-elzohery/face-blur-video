@@ -104,8 +104,8 @@ export function decodeYoloOutput(
         const rawY = data[(chBase + 1) * area + idx];
         const rawV = data[(chBase + 2) * area + idx];
         kps.push({
-          x: (Math.tanh(rawX) * 2 + ax) * stride,
-          y: (Math.tanh(rawY) * 2 + ay) * stride,
+          x: (rawX * 2 + (ax - 0.5)) * stride,
+          y: (rawY * 2 + (ay - 0.5)) * stride,
           vis: sigmoid(rawV),
         });
       }

@@ -1,7 +1,12 @@
 import * as ort from "onnxruntime-web";
 import type { VideoSample } from "mediabunny";
-import type { DetectorEP, ScoredBox } from "@/lib/types";
-import { computeLetterboxLayout, letterboxBoxToNorm, type LetterboxLayout } from "@/lib/coords";
+import type { DetectedFace, DetectorEP } from "@/lib/types";
+import {
+  computeLetterboxLayout,
+  letterboxBoxToNorm,
+  letterboxPointToNorm,
+  type LetterboxLayout,
+} from "@/lib/coords";
 import { decodeYoloOutput, nmsYolo } from "@/lib/model/yolo-decode";
 import { loadYoloModel } from "@/lib/modelStore";
 import { logger } from "@/lib/log";
@@ -63,7 +68,7 @@ export class YoloFaceOnnxDetector implements FaceDetector {
     this.inputName = session.inputNames[0];
   }
 
-  async detect(sample: VideoSample, scoreThreshold: number): Promise<ScoredBox[]> {
+  async detect(sample: VideoSample, scoreThreshold: number): Promise<DetectedFace[]> {
     const { scaledW, scaledH, padX, padY } = this.layout;
     this.ctx.fillStyle = LETTERBOX_FILL;
     this.ctx.fillRect(0, 0, YOLO_INPUT_SIZE, YOLO_INPUT_SIZE);
@@ -94,6 +99,12 @@ export class YoloFaceOnnxDetector implements FaceDetector {
     return kept.map((d) => ({
       ...letterboxBoxToNorm(d.x, d.y, d.w, d.h, this.layout, this.encodeW, this.encodeH),
       score: d.score,
+      landmarks: {
+        pts: d.kps.map((kp) =>
+          letterboxPointToNorm(kp.x, kp.y, this.layout, this.encodeW, this.encodeH),
+        ),
+        vis: d.kps.map((kp) => kp.vis),
+      },
     }));
   }
 

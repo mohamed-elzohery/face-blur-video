@@ -6,13 +6,21 @@ import {
   DEFAULT_JOB_CONFIG,
   type BlurBackend,
   type CapabilityReport,
+  type FaceMeta,
   type JobConfig,
   type MainToWorker,
   type WorkerToMain,
 } from "@/lib/types";
 
 export type PipelineStatus = "probing" | "ready" | "unsupported" | "error";
-export type JobStatus = "idle" | "processing" | "done" | "cancelled" | "error";
+export type JobStatus =
+  | "idle"
+  | "scanning"
+  | "selecting"
+  | "processing"
+  | "done"
+  | "cancelled"
+  | "error";
 
 export interface JobResult {
   blob: Blob;
@@ -24,10 +32,13 @@ export interface JobResult {
 export interface JobState {
   status: JobStatus;
   progress: number;
+  scanProgress: number;
   framesDone: number;
   throughputFps: number;
   backend: BlurBackend | null;
   codec: string | null;
+  faces: FaceMeta[];
+  faceThumbs: ImageBitmap[];
   result: JobResult | null;
   error: string | null;
 }
@@ -35,10 +46,13 @@ export interface JobState {
 const INITIAL_JOB: JobState = {
   status: "idle",
   progress: 0,
+  scanProgress: 0,
   framesDone: 0,
   throughputFps: 0,
   backend: null,
   codec: null,
+  faces: [],
+  faceThumbs: [],
   result: null,
   error: null,
 };
@@ -48,6 +62,8 @@ export interface UsePipeline {
   status: PipelineStatus;
   job: JobState;
   start: (file: File, config?: JobConfig) => void;
+  scan: (file: File, config?: JobConfig) => void;
+  blurSelected: (file: File, keepIds: number[], config?: JobConfig) => void;
   cancel: () => void;
   reset: () => void;
 }
@@ -56,10 +72,18 @@ export function usePipeline(): UsePipeline {
   const workerRef = useRef<Worker | null>(null);
   const durationUsRef = useRef(0);
   const resultUrlRef = useRef<string | null>(null);
+  const thumbsRef = useRef<ImageBitmap[]>([]);
+  const centroidsRef = useRef<Float32Array[]>([]);
 
   const [report, setReport] = useState<CapabilityReport | null>(null);
   const [status, setStatus] = useState<PipelineStatus>("probing");
   const [job, setJob] = useState<JobState>(INITIAL_JOB);
+
+  const closeThumbs = useCallback(() => {
+    for (const b of thumbsRef.current) b.close();
+    thumbsRef.current = [];
+    centroidsRef.current = [];
+  }, []);
 
   useEffect(() => {
     const worker = new Worker(new URL("../worker/pipeline.worker.ts", import.meta.url), {
@@ -74,6 +98,28 @@ export function usePipeline(): UsePipeline {
           const decided = decideCapabilities({ ...msg.features, ...detectMainFeatures() });
           setReport(decided);
           setStatus(decided.supported ? "ready" : "unsupported");
+          break;
+        }
+        case "scanStarted": {
+          durationUsRef.current = msg.durationUs;
+          setJob((j) => ({ ...j, status: "scanning", scanProgress: 0 }));
+          break;
+        }
+        case "scanProgress": {
+          setJob((j) => ({ ...j, status: "scanning", scanProgress: msg.progress }));
+          break;
+        }
+        case "scanFaces": {
+          for (const b of thumbsRef.current) b.close();
+          thumbsRef.current = msg.thumbnails;
+          centroidsRef.current = msg.centroids;
+          setJob((j) => ({
+            ...j,
+            status: "selecting",
+            scanProgress: 1,
+            faces: msg.faces,
+            faceThumbs: msg.thumbnails,
+          }));
           break;
         }
         case "started": {
@@ -129,18 +175,45 @@ export function usePipeline(): UsePipeline {
         URL.revokeObjectURL(resultUrlRef.current);
         resultUrlRef.current = null;
       }
+      closeThumbs();
     };
-  }, []);
+  }, [closeThumbs]);
 
   const start = useCallback((file: File, config: JobConfig = DEFAULT_JOB_CONFIG) => {
     if (resultUrlRef.current) {
       URL.revokeObjectURL(resultUrlRef.current);
       resultUrlRef.current = null;
     }
+    closeThumbs();
     durationUsRef.current = 0;
     setJob({ ...INITIAL_JOB, status: "processing" });
     workerRef.current?.postMessage({ type: "start", file, config } satisfies MainToWorker);
-  }, []);
+  }, [closeThumbs]);
+
+  const scan = useCallback((file: File, config: JobConfig = DEFAULT_JOB_CONFIG) => {
+    if (resultUrlRef.current) {
+      URL.revokeObjectURL(resultUrlRef.current);
+      resultUrlRef.current = null;
+    }
+    closeThumbs();
+    durationUsRef.current = 0;
+    setJob({ ...INITIAL_JOB, status: "scanning" });
+    workerRef.current?.postMessage({ type: "scan", file, config } satisfies MainToWorker);
+  }, [closeThumbs]);
+
+  const blurSelected = useCallback(
+    (file: File, keepIds: number[], config: JobConfig = DEFAULT_JOB_CONFIG) => {
+      const keepCentroids = keepIds
+        .map((id) => centroidsRef.current[id - 1])
+        .filter((c): c is Float32Array => c != null);
+      durationUsRef.current = 0;
+      setJob((j) => ({ ...INITIAL_JOB, status: "processing", faces: j.faces }));
+      workerRef.current?.postMessage(
+        { type: "blurSelected", file, config, keepCentroids } satisfies MainToWorker,
+      );
+    },
+    [],
+  );
 
   const cancel = useCallback(() => {
     workerRef.current?.postMessage({ type: "cancel" } satisfies MainToWorker);
@@ -151,8 +224,9 @@ export function usePipeline(): UsePipeline {
       URL.revokeObjectURL(resultUrlRef.current);
       resultUrlRef.current = null;
     }
+    closeThumbs();
     setJob(INITIAL_JOB);
-  }, []);
+  }, [closeThumbs]);
 
-  return { report, status, job, start, cancel, reset };
+  return { report, status, job, start, scan, blurSelected, cancel, reset };
 }

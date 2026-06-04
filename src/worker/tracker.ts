@@ -1,6 +1,11 @@
-import type { Box, ScoredBox } from "@/lib/types";
+import type { Box, DetectedFace } from "@/lib/types";
 import { boxCenterDist, iou, padBox } from "@/lib/coords";
 import { type KalmanState, kalmanCreate, kalmanPredict, kalmanUpdate } from "./kalman";
+
+export interface TrackMatch {
+  id: number;
+  det: DetectedFace;
+}
 
 export interface TrackerOptions {
   iouMatch: number;
@@ -30,6 +35,7 @@ function trackBox(t: Track): Box {
 export class KalmanTracker {
   private tracks: Track[] = [];
   private nextId = 1;
+  private matches: TrackMatch[] = [];
 
   constructor(private readonly opts: TrackerOptions) {}
 
@@ -43,12 +49,13 @@ export class KalmanTracker {
     }
   }
 
-  update(detections: ScoredBox[]): void {
+  update(detections: DetectedFace[]): void {
     const { measNoise, iouMatch, maxCenterDist, maxMisses } = this.opts;
     const existing = this.tracks;
     const matched = new Set<number>();
     const dets = [...detections].sort((a, b) => b.score - a.score);
     const detMatched = new Array(dets.length).fill(false);
+    this.matches = [];
 
     for (let di = 0; di < dets.length; di++) {
       let best = -1;
@@ -78,6 +85,7 @@ export class KalmanTracker {
         t.hits += 1;
         matched.add(best);
         detMatched[di] = true;
+        this.matches.push({ id: t.id, det: dets[di] });
       }
     }
 
@@ -89,8 +97,9 @@ export class KalmanTracker {
     const initVelCov = this.opts.qVel;
     for (let di = 0; di < dets.length; di++) {
       if (detMatched[di]) continue;
+      const id = this.nextId++;
       existing.push({
-        id: this.nextId++,
+        id,
         kx: kalmanCreate(dets[di].x, initPosCov, initVelCov),
         ky: kalmanCreate(dets[di].y, initPosCov, initVelCov),
         kw: kalmanCreate(dets[di].w, initPosCov, initVelCov),
@@ -99,6 +108,7 @@ export class KalmanTracker {
         misses: 0,
         hits: 1,
       });
+      this.matches.push({ id, det: dets[di] });
     }
 
     this.tracks = existing.filter((t) => t.misses <= maxMisses);
@@ -106,6 +116,14 @@ export class KalmanTracker {
 
   boxes(): Box[] {
     return this.tracks.map((t) => padBox(trackBox(t), this.opts.paddingFrac));
+  }
+
+  boxesWithIds(): { id: number; box: Box }[] {
+    return this.tracks.map((t) => ({ id: t.id, box: padBox(trackBox(t), this.opts.paddingFrac) }));
+  }
+
+  lastMatches(): TrackMatch[] {
+    return this.matches;
   }
 
   get size(): number {

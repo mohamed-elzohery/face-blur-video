@@ -47,6 +47,23 @@ export interface ScoredBox extends Box {
   score: number;
 }
 
+export interface FaceLandmarks {
+  pts: [number, number][];
+  vis: number[];
+}
+
+export interface DetectedFace extends ScoredBox {
+  landmarks?: FaceLandmarks;
+}
+
+export interface FaceMeta {
+  identityId: number;
+  support: number;
+  quality: number;
+  thumbW: number;
+  thumbH: number;
+}
+
 export interface JobConfig {
   style: BlurStyle;
   strength: number;
@@ -74,11 +91,26 @@ export const DEFAULT_JOB_CONFIG: JobConfig = {
 export type MainToWorker =
   | { type: "probe" }
   | { type: "start"; file: File; config: JobConfig }
+  | { type: "scan"; file: File; config: JobConfig }
+  | { type: "blurSelected"; file: File; config: JobConfig; keepCentroids: Float32Array[] }
   | { type: "cancel" };
 
 export type WorkerToMain =
   | { type: "capabilities"; features: RawFeatures }
   | { type: "modelProgress"; loaded: number; total: number }
+  | {
+      type: "scanStarted";
+      durationUs: number;
+      detectorEP: DetectorEP;
+      recognitionEnabled: boolean;
+    }
+  | { type: "scanProgress"; progress: number }
+  | {
+      type: "scanFaces";
+      faces: FaceMeta[];
+      centroids: Float32Array[];
+      thumbnails: ImageBitmap[];
+    }
   | {
       type: "started";
       totalFrames: number | null;

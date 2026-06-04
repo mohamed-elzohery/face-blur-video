@@ -20,6 +20,8 @@ import { PipelineError } from "./errors";
 import { FrameProcessor } from "./frameProcessor";
 import { makeOutputName, openSource } from "./io/source";
 import { KalmanTracker } from "./tracker";
+import { SFaceOnnxEmbedder, type FaceEmbedder } from "./embedder";
+import { KeepController } from "./keepController";
 
 const FEATHER_PX = 2.5;
 const MIN_BLOCK_PX = 6;
@@ -123,12 +125,33 @@ async function runAudio(
   }
 }
 
-export async function runPipeline(
+export function runPipeline(
   file: File,
   config: JobConfig,
   emit: Emit,
   cancel: Cancel,
 ): Promise<void> {
+  return runBlur(file, config, emit, cancel, null);
+}
+
+export function runBlurSelected(
+  file: File,
+  config: JobConfig,
+  emit: Emit,
+  cancel: Cancel,
+  keepCentroids: Float32Array[],
+): Promise<void> {
+  return runBlur(file, config, emit, cancel, keepCentroids);
+}
+
+async function runBlur(
+  file: File,
+  config: JobConfig,
+  emit: Emit,
+  cancel: Cancel,
+  keepCentroids: Float32Array[] | null,
+): Promise<void> {
+  const selective = keepCentroids != null && keepCentroids.length > 0;
   const src = await openSource(file);
   const { videoTrack, audioTrack, displayWidth, displayHeight, durationUs, startOffsetSec } = src;
 
@@ -146,7 +169,7 @@ export async function runPipeline(
   let detector: FaceDetector;
   try {
     detector =
-      config.engine === "yolo"
+      selective || config.engine === "yolo"
         ? await YoloFaceOnnxDetector.create(displayWidth, displayHeight)
         : await YuNetOnnxDetector.create(displayWidth, displayHeight);
   } catch (err) {
@@ -158,6 +181,24 @@ export async function runPipeline(
     );
   }
 
+  let embedder: FaceEmbedder | null = null;
+  let keepController: KeepController | null = null;
+  if (selective) {
+    try {
+      embedder = await SFaceOnnxEmbedder.create();
+      keepController = new KeepController(embedder, keepCentroids!, displayWidth, displayHeight);
+    } catch (err) {
+      emit({
+        type: "log",
+        level: "warn",
+        msg: `Face matching unavailable (${err instanceof Error ? err.message : err}); blurring all faces.`,
+      });
+      embedder?.dispose();
+      embedder = null;
+      keepController = null;
+    }
+  }
+
   const tracker = new KalmanTracker({
     iouMatch: TRACKER_IOU_MATCH,
     maxCenterDist: TRACKER_MAX_CENTER_DIST,
@@ -167,7 +208,7 @@ export async function runPipeline(
     qVel: TRACKER_Q_VEL,
     measNoise: TRACKER_MEAS_NOISE,
   });
-  const processor = new FrameProcessor(renderer, detector, tracker, config);
+  const processor = new FrameProcessor(renderer, detector, tracker, config, keepController);
 
   const format = new Mp4OutputFormat({ fastStart: "in-memory" });
   const target = new BufferTarget();
@@ -240,6 +281,7 @@ export async function runPipeline(
     await output.cancel();
     renderer.dispose();
     detector.dispose();
+    embedder?.dispose();
     src.input.dispose();
     emit({ type: "error", code: "cancelled", message: "Processing was cancelled.", recoverable: true });
     return;
@@ -248,6 +290,7 @@ export async function runPipeline(
   await output.finalize();
   renderer.dispose();
   detector.dispose();
+  embedder?.dispose();
 
   const buffer = target.buffer;
   src.input.dispose();

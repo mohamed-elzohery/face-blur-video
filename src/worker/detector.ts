@@ -1,6 +1,6 @@
 import * as ort from "onnxruntime-web";
 import type { VideoSample } from "mediabunny";
-import type { DetectorEP, ScoredBox } from "@/lib/types";
+import type { DetectedFace, DetectorEP } from "@/lib/types";
 import { computeDetectLayout, detBoxToNormalized, type DetectLayout } from "@/lib/coords";
 import { decodeYuNet, nms } from "@/lib/model/yunet-decode";
 import { loadYuNetModel } from "@/lib/modelStore";
@@ -8,7 +8,7 @@ import { logger } from "@/lib/log";
 
 export interface FaceDetector {
   readonly ep: DetectorEP;
-  detect(sample: VideoSample, scoreThreshold: number): Promise<ScoredBox[]>;
+  detect(sample: VideoSample, scoreThreshold: number): Promise<DetectedFace[]>;
   dispose(): void;
 }
 
@@ -73,7 +73,7 @@ export class YuNetOnnxDetector implements FaceDetector {
     this.inputName = session.inputNames[0];
   }
 
-  async detect(sample: VideoSample, scoreThreshold: number): Promise<ScoredBox[]> {
+  async detect(sample: VideoSample, scoreThreshold: number): Promise<DetectedFace[]> {
     const { detW, detH, scaledW, scaledH } = this.layout;
     this.ctx.fillStyle = "#000";
     this.ctx.fillRect(0, 0, detW, detH);
