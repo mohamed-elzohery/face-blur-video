@@ -6,18 +6,13 @@ import { PipelineError } from "./errors";
 import { openSource } from "./io/source";
 import { YoloFaceOnnxDetector } from "./yolo-detector";
 import { SFaceOnnxEmbedder, type FaceEmbedder } from "./embedder";
-import { clusterDetections, type DetRecord } from "./cluster";
-import {
-  assignTracksToIdentities,
-  type GalleryIdentity,
-  type TrackEmbeds,
-} from "./blurPlan";
+import { buildIdentities, type TrackedRecord } from "./gallery";
 import { KalmanTracker } from "./tracker";
 import type { AnalyzedPlan, FramePlan, PlanEntry } from "./renderPlan";
 import { sourceIdentity } from "./renderPlan";
 import type { Cancel, Emit } from "./runtime";
 
-const MAX_EMBEDS = 600;
+const MAX_EMBEDS = 800;
 const MAX_EMBEDS_PER_TRACK = 6;
 const THUMB_SIZE = 160;
 const THUMB_PAD = 0.35;
@@ -26,7 +21,7 @@ const PROGRESS_INTERVAL_MS = 120;
 const ANALYZE_TRACKER = {
   iouMatch: 0.3,
   maxCenterDist: 0.35,
-  maxMisses: 8,
+  maxMisses: 1,
   qPos: 6e-3,
   qVel: 8e-4,
   measNoise: 5e-4,
@@ -36,17 +31,6 @@ interface TrackAccum {
   embeds: Float32Array[];
   bestThumb: ImageData | null;
   bestQ: number;
-}
-
-function normalizedMean(embeds: Float32Array[]): Float32Array {
-  const dim = embeds[0].length;
-  const sum = new Float32Array(dim);
-  for (const e of embeds) for (let i = 0; i < dim; i++) sum[i] += e[i];
-  let n = 0;
-  for (let i = 0; i < dim; i++) n += sum[i] * sum[i];
-  const inv = 1 / (Math.sqrt(n) + 1e-12);
-  for (let i = 0; i < dim; i++) sum[i] *= inv;
-  return sum;
 }
 
 function thumbnailData(
@@ -124,6 +108,7 @@ export async function runAnalyze(
   const tracker = new KalmanTracker({ ...ANALYZE_TRACKER, paddingFrac: config.paddingFrac });
   const framePlan: FramePlan = new Map();
   const accums = new Map<number, TrackAccum>();
+  const records: TrackedRecord[] = [];
   let totalEmbeds = 0;
   let lastProgress = 0;
 
@@ -178,6 +163,7 @@ export async function runAnalyze(
         if (!quality.eligible) continue;
 
         const emb = await embedder.embed(aligned);
+        records.push({ emb, q: quality.q, frameId: frameIndex, trackId: id });
         const target = accum ?? { embeds: [], bestThumb: null, bestQ: -Infinity };
         target.embeds.push(emb);
         if (quality.q > target.bestQ) {
@@ -214,57 +200,38 @@ export async function runAnalyze(
   detector.dispose();
   src.input.dispose();
 
-  const trackReps: { trackId: number; rep: Float32Array; q: number; thumb: ImageData | null }[] = [];
-  for (const [trackId, accum] of accums) {
-    if (accum.embeds.length === 0) continue;
-    trackReps.push({
-      trackId,
-      rep: normalizedMean(accum.embeds),
-      q: accum.bestQ,
-      thumb: accum.bestThumb,
-    });
-  }
+  const allTrackIds = new Set<number>();
+  for (const entries of framePlan.values()) for (const e of entries) allTrackIds.add(e.trackId);
+  const trackEmbeds = new Map<number, Float32Array[]>();
+  for (const [id, accum] of accums) trackEmbeds.set(id, accum.embeds);
 
-  const records: DetRecord[] = trackReps.map((t, i) => ({ emb: t.rep, q: t.q, frameId: i }));
-  const clusters = clusterDetections(records);
+  const { identities, trackToIdentity } = buildIdentities(records, [...allTrackIds], trackEmbeds);
 
-  const gallery: GalleryIdentity[] = [];
   const faces: FaceMeta[] = [];
   const centroids: Float32Array[] = [];
   const thumbnails: ImageBitmap[] = [];
-  let identityId = 1;
-  for (const cl of clusters) {
-    let bestThumbIdx = cl.members[0];
-    let bestThumbQ = -Infinity;
-    for (const m of cl.members) {
-      if (records[m].q > bestThumbQ) {
-        bestThumbQ = records[m].q;
-        bestThumbIdx = m;
+  for (const idn of identities) {
+    let bestIdx = idn.memberRecordIdxs[0];
+    let bestQ = -Infinity;
+    for (const m of idn.memberRecordIdxs) {
+      if (records[m].q > bestQ) {
+        bestQ = records[m].q;
+        bestIdx = m;
       }
     }
-    const thumb = trackReps[bestThumbIdx].thumb;
+    const thumb = accums.get(records[bestIdx].trackId)?.bestThumb;
     if (!thumb) continue;
     const bitmap = await createImageBitmap(thumb);
-    gallery.push({ identityId, members: cl.members.map((m) => trackReps[m].rep) });
     faces.push({
-      identityId,
-      support: cl.support,
-      quality: cl.quality,
+      identityId: idn.identityId,
+      support: idn.support,
+      quality: idn.quality,
       thumbW: thumb.width,
       thumbH: thumb.height,
     });
-    centroids.push(cl.centroid);
+    centroids.push(idn.centroid);
     thumbnails.push(bitmap);
-    identityId += 1;
   }
-
-  const allTrackIds = new Set<number>();
-  for (const entries of framePlan.values()) for (const e of entries) allTrackIds.add(e.trackId);
-  const tracks: TrackEmbeds[] = [...allTrackIds].map((id) => ({
-    trackId: id,
-    embeds: accums.get(id)?.embeds ?? [],
-  }));
-  const trackToIdentity = assignTracksToIdentities(tracks, gallery);
 
   if (cancel.cancelled) {
     for (const b of thumbnails) b.close();
@@ -282,7 +249,7 @@ export async function runAnalyze(
     source: sourceIdentity(file),
     framePlan,
     trackToIdentity,
-    identityCount: gallery.length,
+    identityCount: identities.length,
     detectorEP: detector.ep,
     config,
   };
