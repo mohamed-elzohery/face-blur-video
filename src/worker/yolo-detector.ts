@@ -1,4 +1,4 @@
-import * as ort from "onnxruntime-web";
+import * as ort from "onnxruntime-web/wasm";
 import type { VideoSample } from "mediabunny";
 import type { DetectedFace, DetectorEP } from "@/lib/types";
 import {
@@ -9,7 +9,6 @@ import {
 } from "@/lib/coords";
 import { decodeYoloOutput, nmsYolo } from "@/lib/model/yolo-decode";
 import { loadYoloModel } from "@/lib/modelStore";
-import { logger } from "@/lib/log";
 import { ORT_SESSION_OPTIONS, configureOrtEnv, type FaceDetector } from "./detector";
 import type { Emit } from "./runtime";
 
@@ -34,26 +33,12 @@ async function createYoloSession(
   const model = await loadYoloModel();
   onPhase?.(2, total);
 
-  let session: ort.InferenceSession;
-  let ep: DetectorEP;
-  try {
-    session = await ort.InferenceSession.create(model, {
-      executionProviders: ["webgpu"],
-      ...ORT_SESSION_OPTIONS,
-    });
-    ep = "webgpu";
-  } catch (err) {
-    logger.warn(
-      `ONNX Runtime WebGPU EP unavailable (${err instanceof Error ? err.message : err}); using WASM EP.`,
-    );
-    session = await ort.InferenceSession.create(model, {
-      executionProviders: ["wasm"],
-      ...ORT_SESSION_OPTIONS,
-    });
-    ep = "wasm";
-  }
+  const session = await ort.InferenceSession.create(model, {
+    executionProviders: ["wasm"],
+    ...ORT_SESSION_OPTIONS,
+  });
   onPhase?.(3, total);
-  return { session, ep };
+  return { session, ep: "wasm" };
 }
 
 function ensureYoloSession(

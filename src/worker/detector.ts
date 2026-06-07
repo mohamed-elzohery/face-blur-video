@@ -1,4 +1,4 @@
-import * as ort from "onnxruntime-web";
+import * as ort from "onnxruntime-web/wasm";
 import type { VideoSample } from "mediabunny";
 import type { DetectedFace, DetectorEP } from "@/lib/types";
 import { computeDetectLayout, detBoxToNormalized, type DetectLayout } from "@/lib/coords";
@@ -58,26 +58,11 @@ export class YuNetOnnxDetector implements FaceDetector {
   static async create(encodeW: number, encodeH: number): Promise<YuNetOnnxDetector> {
     configureOrtEnv();
     const model = await loadYuNetModel();
-
-    let session: ort.InferenceSession;
-    let ep: DetectorEP;
-    try {
-      session = await ort.InferenceSession.create(model, {
-        executionProviders: ["webgpu"],
-        ...ORT_SESSION_OPTIONS,
-      });
-      ep = "webgpu";
-    } catch (err) {
-      logger.warn(
-        `ONNX Runtime WebGPU EP unavailable (${err instanceof Error ? err.message : err}); using WASM EP.`,
-      );
-      session = await ort.InferenceSession.create(model, {
-        executionProviders: ["wasm"],
-        ...ORT_SESSION_OPTIONS,
-      });
-      ep = "wasm";
-    }
-    return new YuNetOnnxDetector(session, ep, encodeW, encodeH);
+    const session = await ort.InferenceSession.create(model, {
+      executionProviders: ["wasm"],
+      ...ORT_SESSION_OPTIONS,
+    });
+    return new YuNetOnnxDetector(session, "wasm", encodeW, encodeH);
   }
 
   private constructor(
