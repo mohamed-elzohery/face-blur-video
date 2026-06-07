@@ -1,4 +1,4 @@
-import * as ort from "onnxruntime-web/wasm";
+import * as ort from "onnxruntime-web/webgpu";
 import type { VideoSample } from "mediabunny";
 import type { DetectedFace, DetectorEP } from "@/lib/types";
 import { computeDetectLayout, detBoxToNormalized, type DetectLayout } from "@/lib/coords";
@@ -33,9 +33,29 @@ export function configureOrtEnv(): void {
   resolvedThreads = pickNumThreads(isolated, cores, THREAD_CAP);
   ort.env.wasm.numThreads = resolvedThreads;
   logger.info(
-    `ORT WASM env: numThreads=${resolvedThreads}, crossOriginIsolated=${isolated}, simd=true`,
+    `ORT env: numThreads=${resolvedThreads}, crossOriginIsolated=${isolated}, simd=true`,
   );
   envConfigured = true;
+}
+
+let detectorEP: DetectorEP | null = null;
+export async function resolveDetectorEP(): Promise<DetectorEP> {
+  if (detectorEP) return detectorEP;
+  let ep: DetectorEP = "wasm";
+  try {
+    if (typeof navigator !== "undefined" && "gpu" in navigator && navigator.gpu) {
+      const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
+      if (adapter) ep = "webgpu";
+    }
+  } catch {
+    ep = "wasm";
+  }
+  detectorEP = ep;
+  return ep;
+}
+
+export function executionProvidersFor(ep: DetectorEP): string[] {
+  return ep === "webgpu" ? ["webgpu", "wasm"] : ["wasm"];
 }
 
 export const ORT_SESSION_OPTIONS = {
@@ -57,12 +77,13 @@ export class YuNetOnnxDetector implements FaceDetector {
 
   static async create(encodeW: number, encodeH: number): Promise<YuNetOnnxDetector> {
     configureOrtEnv();
+    const ep = await resolveDetectorEP();
     const model = await loadYuNetModel();
     const session = await ort.InferenceSession.create(model, {
-      executionProviders: ["wasm"],
+      executionProviders: executionProvidersFor(ep),
       ...ORT_SESSION_OPTIONS,
     });
-    return new YuNetOnnxDetector(session, "wasm", encodeW, encodeH);
+    return new YuNetOnnxDetector(session, ep, encodeW, encodeH);
   }
 
   private constructor(

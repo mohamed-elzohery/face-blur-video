@@ -6,6 +6,7 @@ import {
   DEFAULT_JOB_CONFIG,
   type BlurBackend,
   type CapabilityReport,
+  type DetectorEP,
   type FaceMeta,
   type JobConfig,
   type MainToWorker,
@@ -38,6 +39,10 @@ export interface JobState {
   throughputFps: number;
   backend: BlurBackend | null;
   codec: string | null;
+  detectorEP: DetectorEP | null;
+  numThreads: number | null;
+  crossOriginIsolated: boolean | null;
+  lastLog: string | null;
   faces: FaceMeta[];
   faceThumbs: ImageBitmap[];
   result: JobResult | null;
@@ -52,6 +57,10 @@ const INITIAL_JOB: JobState = {
   throughputFps: 0,
   backend: null,
   codec: null,
+  detectorEP: null,
+  numThreads: null,
+  crossOriginIsolated: null,
+  lastLog: null,
   faces: [],
   faceThumbs: [],
   result: null,
@@ -140,7 +149,15 @@ export function usePipeline(): UsePipeline {
         }
         case "started": {
           durationUsRef.current = msg.durationUs;
-          setJob((j) => ({ ...j, status: "processing", backend: msg.blurBackend, codec: msg.codec }));
+          setJob((j) => ({
+            ...j,
+            status: "processing",
+            backend: msg.blurBackend,
+            codec: msg.codec,
+            detectorEP: msg.detectorEP,
+            numThreads: msg.numThreads,
+            crossOriginIsolated: msg.crossOriginIsolated,
+          }));
           break;
         }
         case "progress": {
@@ -175,8 +192,11 @@ export function usePipeline(): UsePipeline {
           }));
           break;
         }
-        case "log":
+        case "log": {
+          const line = msg.msg;
+          setJob((j) => ({ ...j, lastLog: line }));
           break;
+        }
       }
     };
 

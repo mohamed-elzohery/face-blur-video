@@ -121,6 +121,8 @@ export type WorkerToMain =
       codec: string;
       blurBackend: BlurBackend;
       detectorEP: DetectorEP;
+      numThreads: number;
+      crossOriginIsolated: boolean;
     }
   | {
       type: "progress";

@@ -8,6 +8,7 @@ import {
 } from "mediabunny";
 import type { JobConfig } from "@/lib/types";
 import { createRenderer } from "./blur";
+import { resolvedNumThreads } from "./detector";
 import { PipelineError } from "./errors";
 import { makeOutputName, openSource } from "./io/source";
 import {
@@ -93,6 +94,9 @@ export async function runRenderFromPlan(
         codec: codecHolder.codec,
         blurBackend,
         detectorEP: plan.detectorEP,
+        numThreads: resolvedNumThreads(),
+        crossOriginIsolated:
+          typeof crossOriginIsolated !== "undefined" && crossOriginIsolated === true,
       });
     }
 

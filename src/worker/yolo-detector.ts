@@ -1,4 +1,4 @@
-import * as ort from "onnxruntime-web/wasm";
+import * as ort from "onnxruntime-web/webgpu";
 import type { VideoSample } from "mediabunny";
 import type { DetectedFace, DetectorEP } from "@/lib/types";
 import {
@@ -9,7 +9,13 @@ import {
 } from "@/lib/coords";
 import { decodeYoloOutput, nmsYolo } from "@/lib/model/yolo-decode";
 import { loadYoloModel } from "@/lib/modelStore";
-import { ORT_SESSION_OPTIONS, configureOrtEnv, type FaceDetector } from "./detector";
+import {
+  ORT_SESSION_OPTIONS,
+  configureOrtEnv,
+  executionProvidersFor,
+  resolveDetectorEP,
+  type FaceDetector,
+} from "./detector";
 import type { Emit } from "./runtime";
 
 const YOLO_INPUT_SIZE = 640;
@@ -29,16 +35,17 @@ async function createYoloSession(
 ): Promise<WarmYolo> {
   const total = 3;
   configureOrtEnv();
+  const ep = await resolveDetectorEP();
   onPhase?.(1, total);
   const model = await loadYoloModel();
   onPhase?.(2, total);
 
   const session = await ort.InferenceSession.create(model, {
-    executionProviders: ["wasm"],
+    executionProviders: executionProvidersFor(ep),
     ...ORT_SESSION_OPTIONS,
   });
   onPhase?.(3, total);
-  return { session, ep: "wasm" };
+  return { session, ep };
 }
 
 function ensureYoloSession(

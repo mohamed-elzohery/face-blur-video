@@ -142,6 +142,10 @@ export default function App() {
         progress={job.progress}
         framesDone={job.framesDone}
         fps={job.throughputFps}
+        detectorEP={job.detectorEP}
+        numThreads={job.numThreads}
+        crossOriginIsolated={job.crossOriginIsolated}
+        lastLog={job.lastLog}
         onCancel={cancel}
       />
     );

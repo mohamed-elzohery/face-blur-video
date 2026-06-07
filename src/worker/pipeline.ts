@@ -7,8 +7,9 @@ import {
   VideoSampleSink,
 } from "mediabunny";
 import type { JobConfig } from "@/lib/types";
+import { logger } from "@/lib/log";
 import { createRenderer } from "./blur";
-import { YuNetOnnxDetector, type FaceDetector } from "./detector";
+import { YuNetOnnxDetector, resolvedNumThreads, type FaceDetector } from "./detector";
 import { YoloFaceOnnxDetector } from "./yolo-detector";
 import { PipelineError } from "./errors";
 import { FrameProcessor } from "./frameProcessor";
@@ -97,18 +98,25 @@ export async function runPipeline(
   let framesDone = 0;
   let announced = false;
   let lastEmit = 0;
+  let encodeMs = 0;
+  let decodeMs = 0;
+  let lastWorkEnd = startedAt;
 
   for await (const sample of sink.samples()) {
+    decodeMs += performance.now() - lastWorkEnd;
     if (cancel.cancelled) {
       sample.close();
       break;
     }
 
     await processor.process(sample);
+    const encStart = performance.now();
     await videoSource.add(Math.max(0, sample.timestamp - startOffsetSec), sample.duration);
+    encodeMs += performance.now() - encStart;
     const currentTimeUs = sample.microsecondTimestamp;
     sample.close();
     framesDone++;
+    lastWorkEnd = performance.now();
 
     if (!announced) {
       announced = true;
@@ -120,6 +128,9 @@ export async function runPipeline(
         codec: codecHolder.codec,
         blurBackend,
         detectorEP: detector.ep,
+        numThreads: resolvedNumThreads(),
+        crossOriginIsolated:
+          typeof crossOriginIsolated !== "undefined" && crossOriginIsolated === true,
       });
     }
 
@@ -151,6 +162,19 @@ export async function runPipeline(
   }
 
   await output.finalize();
+
+  const stats = processor.stats();
+  const isolated = typeof crossOriginIsolated !== "undefined" && crossOriginIsolated === true;
+  const elapsed = (performance.now() - startedAt) / 1000;
+  const summary =
+    `blur-all: detectorEP=${detector.ep} engine=${config.engine} frames=${framesDone} ` +
+    `detects=${stats.detectCount} decodeMs=${Math.round(decodeMs)} detectMs=${Math.round(stats.detectMs)} ` +
+    `renderMs=${Math.round(stats.renderMs)} encodeMs=${Math.round(encodeMs)} ` +
+    `fps=${(elapsed > 0 ? framesDone / elapsed : 0).toFixed(1)} ` +
+    `numThreads=${resolvedNumThreads()} crossOriginIsolated=${isolated}`;
+  logger.info(summary);
+  emit({ type: "log", level: "info", msg: summary });
+
   renderer.dispose();
   detector.dispose();
 

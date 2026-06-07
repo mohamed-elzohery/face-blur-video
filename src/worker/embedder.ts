@@ -1,4 +1,4 @@
-import * as ort from "onnxruntime-web/wasm";
+import * as ort from "onnxruntime-web/webgpu";
 import { loadSFaceModel } from "@/lib/modelStore";
 import { ALIGNED_SIZE } from "@/lib/model/face-align";
 import { ORT_SESSION_OPTIONS, configureOrtEnv } from "./detector";
