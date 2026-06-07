@@ -8,12 +8,8 @@ import {
 } from "mediabunny";
 import type { JobConfig } from "@/lib/types";
 import { createRenderer } from "./blur";
-import { YuNetOnnxDetector, type FaceDetector } from "./detector";
-import { YoloFaceOnnxDetector } from "./yolo-detector";
 import { PipelineError } from "./errors";
-import { FrameProcessor } from "./frameProcessor";
 import { makeOutputName, openSource } from "./io/source";
-import { KalmanTracker } from "./tracker";
 import {
   PROGRESS_INTERVAL_MS,
   detectBlurBackend,
@@ -21,23 +17,20 @@ import {
   runAudio,
   setupAudio,
 } from "./encode";
+import { keepSetFromSelection, shouldBlur, type AnalyzedPlan, type PlanEntry } from "./renderPlan";
 import type { Cancel, Emit } from "./runtime";
 
-const TRACKER_IOU_MATCH = 0.3;
-const TRACKER_MAX_CENTER_DIST = 0.35;
-const TRACKER_MAX_MISSES = 1;
-const TRACKER_Q_POS = 6e-3;
-const TRACKER_Q_VEL = 8e-4;
-const TRACKER_MEAS_NOISE = 5e-4;
-
-export async function runPipeline(
+export async function runRenderFromPlan(
   file: File,
   config: JobConfig,
+  plan: AnalyzedPlan,
+  keepIds: number[],
   emit: Emit,
   cancel: Cancel,
 ): Promise<void> {
   const src = await openSource(file);
   const { videoTrack, audioTrack, displayWidth, displayHeight, durationUs, startOffsetSec } = src;
+  const keep = keepSetFromSelection(keepIds);
 
   const requestedBackend = await detectBlurBackend();
   const { renderer, backend: blurBackend } = await createRenderer(
@@ -46,32 +39,6 @@ export async function runPipeline(
     displayHeight,
     rendererOptionsFor(config),
   );
-
-  let detector: FaceDetector;
-  try {
-    detector =
-      config.engine === "yolo"
-        ? await YoloFaceOnnxDetector.create(displayWidth, displayHeight)
-        : await YuNetOnnxDetector.create(displayWidth, displayHeight);
-  } catch (err) {
-    renderer.dispose();
-    src.input.dispose();
-    throw new PipelineError(
-      "detector-init",
-      `Couldn't load the face-detection model: ${err instanceof Error ? err.message : err}`,
-    );
-  }
-
-  const tracker = new KalmanTracker({
-    iouMatch: TRACKER_IOU_MATCH,
-    maxCenterDist: TRACKER_MAX_CENTER_DIST,
-    maxMisses: TRACKER_MAX_MISSES,
-    paddingFrac: config.paddingFrac,
-    qPos: TRACKER_Q_POS,
-    qVel: TRACKER_Q_VEL,
-    measNoise: TRACKER_MEAS_NOISE,
-  });
-  const processor = new FrameProcessor(renderer, detector, tracker, config);
 
   const format = new Mp4OutputFormat({ fastStart: "in-memory" });
   const target = new BufferTarget();
@@ -96,6 +63,7 @@ export async function runPipeline(
   let framesDone = 0;
   let announced = false;
   let lastEmit = 0;
+  let lastEntries: PlanEntry[] = [];
 
   for await (const sample of sink.samples()) {
     if (cancel.cancelled) {
@@ -103,7 +71,12 @@ export async function runPipeline(
       break;
     }
 
-    await processor.process(sample);
+    const entries = plan.framePlan.get(sample.microsecondTimestamp) ?? lastEntries;
+    lastEntries = entries;
+    const boxes = entries
+      .filter((e) => shouldBlur(e.trackId, plan.trackToIdentity, keep))
+      .map((e) => e.box);
+    await renderer.render(sample, boxes);
     await videoSource.add(Math.max(0, sample.timestamp - startOffsetSec), sample.duration);
     const currentTimeUs = sample.microsecondTimestamp;
     sample.close();
@@ -118,7 +91,7 @@ export async function runPipeline(
         fps: 0,
         codec: codecHolder.codec,
         blurBackend,
-        detectorEP: detector.ep,
+        detectorEP: plan.detectorEP,
       });
     }
 
@@ -143,7 +116,6 @@ export async function runPipeline(
   if (cancel.cancelled) {
     await output.cancel();
     renderer.dispose();
-    detector.dispose();
     src.input.dispose();
     emit({ type: "error", code: "cancelled", message: "Processing was cancelled.", recoverable: true });
     return;
@@ -151,7 +123,6 @@ export async function runPipeline(
 
   await output.finalize();
   renderer.dispose();
-  detector.dispose();
 
   const buffer = target.buffer;
   src.input.dispose();

@@ -1,8 +1,11 @@
 import { probeFeatures } from "@/lib/capabilities";
 import type { MainToWorker, WorkerToMain } from "@/lib/types";
 import { PipelineError } from "./errors";
-import { runBlurSelected, runPipeline, type Cancel } from "./pipeline";
-import { runScan } from "./scan";
+import { runPipeline } from "./pipeline";
+import { runAnalyze } from "./analyze";
+import { runRenderFromPlan } from "./renderFromPlan";
+import { sameSource, sourceIdentity, type AnalyzedPlan } from "./renderPlan";
+import type { Cancel } from "./runtime";
 
 function toError(err: unknown): WorkerToMain {
   const code = err instanceof PipelineError ? err.code : "pipeline-error";
@@ -27,6 +30,7 @@ function post(msg: WorkerToMain, transfer: Transferable[] = []): void {
 }
 
 let cancel: Cancel = { cancelled: false };
+let analyzedPlan: AnalyzedPlan | null = null;
 
 ctx.onmessage = async (e: MessageEvent<MainToWorker>) => {
   const msg = e.data;
@@ -38,6 +42,7 @@ ctx.onmessage = async (e: MessageEvent<MainToWorker>) => {
     }
     case "start": {
       cancel = { cancelled: false };
+      analyzedPlan = null;
       try {
         await runPipeline(msg.file, msg.config, (m, t) => post(m, t), cancel);
       } catch (err) {
@@ -47,8 +52,9 @@ ctx.onmessage = async (e: MessageEvent<MainToWorker>) => {
     }
     case "scan": {
       cancel = { cancelled: false };
+      analyzedPlan = null;
       try {
-        await runScan(msg.file, msg.config, (m, t) => post(m, t), cancel);
+        analyzedPlan = await runAnalyze(msg.file, msg.config, (m, t) => post(m, t), cancel);
       } catch (err) {
         post(toError(err));
       }
@@ -57,7 +63,14 @@ ctx.onmessage = async (e: MessageEvent<MainToWorker>) => {
     case "blurSelected": {
       cancel = { cancelled: false };
       try {
-        await runBlurSelected(msg.file, msg.config, (m, t) => post(m, t), cancel, msg.keepCentroids);
+        let plan = analyzedPlan;
+        if (!plan || !sameSource(plan.source, sourceIdentity(msg.file))) {
+          plan = await runAnalyze(msg.file, msg.config, (m, t) => post(m, t), cancel, false);
+          if (plan) analyzedPlan = plan;
+        }
+        if (plan && !cancel.cancelled) {
+          await runRenderFromPlan(msg.file, msg.config, plan, msg.keepIds, (m, t) => post(m, t), cancel);
+        }
       } catch (err) {
         post(toError(err));
       }

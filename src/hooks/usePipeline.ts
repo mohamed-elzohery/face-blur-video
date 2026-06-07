@@ -73,7 +73,6 @@ export function usePipeline(): UsePipeline {
   const durationUsRef = useRef(0);
   const resultUrlRef = useRef<string | null>(null);
   const thumbsRef = useRef<ImageBitmap[]>([]);
-  const centroidsRef = useRef<Float32Array[]>([]);
 
   const [report, setReport] = useState<CapabilityReport | null>(null);
   const [status, setStatus] = useState<PipelineStatus>("probing");
@@ -82,7 +81,6 @@ export function usePipeline(): UsePipeline {
   const closeThumbs = useCallback(() => {
     for (const b of thumbsRef.current) b.close();
     thumbsRef.current = [];
-    centroidsRef.current = [];
   }, []);
 
   useEffect(() => {
@@ -112,7 +110,6 @@ export function usePipeline(): UsePipeline {
         case "scanFaces": {
           for (const b of thumbsRef.current) b.close();
           thumbsRef.current = msg.thumbnails;
-          centroidsRef.current = msg.centroids;
           setJob((j) => ({
             ...j,
             status: "selecting",
@@ -203,13 +200,10 @@ export function usePipeline(): UsePipeline {
 
   const blurSelected = useCallback(
     (file: File, keepIds: number[], config: JobConfig = DEFAULT_JOB_CONFIG) => {
-      const keepCentroids = keepIds
-        .map((id) => centroidsRef.current[id - 1])
-        .filter((c): c is Float32Array => c != null);
       durationUsRef.current = 0;
       setJob((j) => ({ ...INITIAL_JOB, status: "processing", faces: j.faces }));
       workerRef.current?.postMessage(
-        { type: "blurSelected", file, config, keepCentroids } satisfies MainToWorker,
+        { type: "blurSelected", file, config, keepIds } satisfies MainToWorker,
       );
     },
     [],

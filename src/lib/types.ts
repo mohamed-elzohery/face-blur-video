@@ -92,7 +92,7 @@ export type MainToWorker =
   | { type: "probe" }
   | { type: "start"; file: File; config: JobConfig }
   | { type: "scan"; file: File; config: JobConfig }
-  | { type: "blurSelected"; file: File; config: JobConfig; keepCentroids: Float32Array[] }
+  | { type: "blurSelected"; file: File; config: JobConfig; keepIds: number[] }
   | { type: "cancel" };
 
 export type WorkerToMain =
