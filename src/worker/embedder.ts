@@ -1,7 +1,7 @@
 import * as ort from "onnxruntime-web";
 import { loadSFaceModel } from "@/lib/modelStore";
 import { ALIGNED_SIZE } from "@/lib/model/face-align";
-import { configureOrtEnv } from "./detector";
+import { ORT_SESSION_OPTIONS, configureOrtEnv } from "./detector";
 
 export interface FaceEmbedder {
   embed(aligned: ImageData): Promise<Float32Array>;
@@ -19,7 +19,10 @@ export class SFaceOnnxEmbedder implements FaceEmbedder {
   static async create(): Promise<SFaceOnnxEmbedder> {
     configureOrtEnv();
     const model = await loadSFaceModel();
-    const session = await ort.InferenceSession.create(model, { executionProviders: ["wasm"] });
+    const session = await ort.InferenceSession.create(model, {
+      executionProviders: ["wasm"],
+      ...ORT_SESSION_OPTIONS,
+    });
     return new SFaceOnnxEmbedder(session);
   }
 

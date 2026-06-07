@@ -10,7 +10,7 @@ import {
 import { decodeYoloOutput, nmsYolo } from "@/lib/model/yolo-decode";
 import { loadYoloModel } from "@/lib/modelStore";
 import { logger } from "@/lib/log";
-import { configureOrtEnv, type FaceDetector } from "./detector";
+import { ORT_SESSION_OPTIONS, configureOrtEnv, type FaceDetector } from "./detector";
 
 const YOLO_INPUT_SIZE = 640;
 const LETTERBOX_FILL = "rgb(114,114,114)";
@@ -36,13 +36,19 @@ export class YoloFaceOnnxDetector implements FaceDetector {
     let session: ort.InferenceSession;
     let ep: DetectorEP;
     try {
-      session = await ort.InferenceSession.create(model, { executionProviders: ["webgpu"] });
+      session = await ort.InferenceSession.create(model, {
+        executionProviders: ["webgpu"],
+        ...ORT_SESSION_OPTIONS,
+      });
       ep = "webgpu";
     } catch (err) {
       logger.warn(
         `ONNX Runtime WebGPU EP unavailable (${err instanceof Error ? err.message : err}); using WASM EP.`,
       );
-      session = await ort.InferenceSession.create(model, { executionProviders: ["wasm"] });
+      session = await ort.InferenceSession.create(model, {
+        executionProviders: ["wasm"],
+        ...ORT_SESSION_OPTIONS,
+      });
       ep = "wasm";
     }
     return new YoloFaceOnnxDetector(session, ep, encodeW, encodeH);

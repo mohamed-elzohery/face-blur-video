@@ -5,6 +5,7 @@ import { computeDetectLayout, detBoxToNormalized, type DetectLayout } from "@/li
 import { decodeYuNet, nms } from "@/lib/model/yunet-decode";
 import { loadYuNetModel } from "@/lib/modelStore";
 import { logger } from "@/lib/log";
+import { THREAD_CAP, pickNumThreads } from "./ortThreads";
 
 export interface FaceDetector {
   readonly ep: DetectorEP;
@@ -15,13 +16,30 @@ export interface FaceDetector {
 const DETECT_LONG_SIDE = 480;
 const NMS_IOU = 0.3;
 
+let resolvedThreads = 1;
+export function resolvedNumThreads(): number {
+  return resolvedThreads;
+}
+
 let envConfigured = false;
 export function configureOrtEnv(): void {
   if (envConfigured) return;
   ort.env.wasm.wasmPaths = "/ort/";
-  ort.env.wasm.numThreads = 1;
+  ort.env.wasm.simd = true;
+  const isolated = typeof crossOriginIsolated !== "undefined" && crossOriginIsolated === true;
+  const cores = typeof navigator !== "undefined" ? navigator.hardwareConcurrency || 4 : 4;
+  resolvedThreads = pickNumThreads(isolated, cores, THREAD_CAP);
+  ort.env.wasm.numThreads = resolvedThreads;
+  logger.info(
+    `ORT WASM env: numThreads=${resolvedThreads}, crossOriginIsolated=${isolated}, simd=true`,
+  );
   envConfigured = true;
 }
+
+export const ORT_SESSION_OPTIONS = {
+  graphOptimizationLevel: "all",
+  enableCpuMemArena: true,
+} as const;
 
 export class YuNetOnnxDetector implements FaceDetector {
   readonly ep: DetectorEP;
@@ -42,13 +60,19 @@ export class YuNetOnnxDetector implements FaceDetector {
     let session: ort.InferenceSession;
     let ep: DetectorEP;
     try {
-      session = await ort.InferenceSession.create(model, { executionProviders: ["webgpu"] });
+      session = await ort.InferenceSession.create(model, {
+        executionProviders: ["webgpu"],
+        ...ORT_SESSION_OPTIONS,
+      });
       ep = "webgpu";
     } catch (err) {
       logger.warn(
         `ONNX Runtime WebGPU EP unavailable (${err instanceof Error ? err.message : err}); using WASM EP.`,
       );
-      session = await ort.InferenceSession.create(model, { executionProviders: ["wasm"] });
+      session = await ort.InferenceSession.create(model, {
+        executionProviders: ["wasm"],
+        ...ORT_SESSION_OPTIONS,
+      });
       ep = "wasm";
     }
     return new YuNetOnnxDetector(session, ep, encodeW, encodeH);

@@ -2,8 +2,10 @@ import { VideoSampleSink, type VideoSample } from "mediabunny";
 import type { Box, DetectedFace, FaceMeta, JobConfig } from "@/lib/types";
 import { ALIGNED_SIZE, warpFaceTo112 } from "@/lib/model/face-align";
 import { faceQuality, laplacianVariance } from "@/lib/model/face-quality";
+import { logger } from "@/lib/log";
 import { PipelineError } from "./errors";
 import { openSource } from "./io/source";
+import { resolvedNumThreads } from "./detector";
 import { YoloFaceOnnxDetector } from "./yolo-detector";
 import { SFaceOnnxEmbedder, type FaceEmbedder } from "./embedder";
 import { buildIdentities } from "./gallery";
@@ -123,6 +125,8 @@ export async function runAnalyze(
   const trackEmbeds = new Map<number, Float32Array[]>();
   const thumbs = new Map<number, ThumbAccum>();
   let totalEmbeds = 0;
+  let detectMs = 0;
+  let embedMs = 0;
   let lastProgress = 0;
 
   const sink = new VideoSampleSink(videoTrack);
@@ -139,7 +143,9 @@ export async function runAnalyze(
     }
 
     tracker.predict();
+    const detStart = performance.now();
     const dets = await detector.detect(sample, config.sensitivity);
+    detectMs += performance.now() - detStart;
     tracker.update(dets);
 
     const matchById = new Map<number, DetectedFace>();
@@ -164,7 +170,9 @@ export async function runAnalyze(
           landmarks: det.landmarks,
           sharpness,
         });
+        const embStart = performance.now();
         emb = await embedder.embed(aligned);
+        embedMs += performance.now() - embStart;
         totalEmbeds += 1;
 
         const cand = perTrackCandidates.get(id);
@@ -205,6 +213,13 @@ export async function runAnalyze(
   embedder.dispose();
   detector.dispose();
   src.input.dispose();
+
+  const isolated = typeof crossOriginIsolated !== "undefined" && crossOriginIsolated === true;
+  const summary =
+    `analyze: frames=${frameIndex} detectMs=${Math.round(detectMs)} embedMs=${Math.round(embedMs)} ` +
+    `embeds=${totalEmbeds} numThreads=${resolvedNumThreads()} crossOriginIsolated=${isolated}`;
+  logger.info(summary);
+  emit({ type: "log", level: "info", msg: summary });
 
   const allTrackIds = new Set<number>();
   for (const faces of rawFrames.values()) for (const f of faces) allTrackIds.add(f.trackId);
