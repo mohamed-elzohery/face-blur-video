@@ -11,15 +11,81 @@ import { decodeYoloOutput, nmsYolo } from "@/lib/model/yolo-decode";
 import { loadYoloModel } from "@/lib/modelStore";
 import { logger } from "@/lib/log";
 import { ORT_SESSION_OPTIONS, configureOrtEnv, type FaceDetector } from "./detector";
+import type { Emit } from "./runtime";
 
 const YOLO_INPUT_SIZE = 640;
 const LETTERBOX_FILL = "rgb(114,114,114)";
 const NMS_IOU = 0.45;
 
+interface WarmYolo {
+  session: ort.InferenceSession;
+  ep: DetectorEP;
+}
+
+let warmYolo: WarmYolo | null = null;
+let warmYoloPromise: Promise<WarmYolo> | null = null;
+
+async function createYoloSession(
+  onPhase?: (loaded: number, total: number) => void,
+): Promise<WarmYolo> {
+  const total = 3;
+  configureOrtEnv();
+  onPhase?.(1, total);
+  const model = await loadYoloModel();
+  onPhase?.(2, total);
+
+  let session: ort.InferenceSession;
+  let ep: DetectorEP;
+  try {
+    session = await ort.InferenceSession.create(model, {
+      executionProviders: ["webgpu"],
+      ...ORT_SESSION_OPTIONS,
+    });
+    ep = "webgpu";
+  } catch (err) {
+    logger.warn(
+      `ONNX Runtime WebGPU EP unavailable (${err instanceof Error ? err.message : err}); using WASM EP.`,
+    );
+    session = await ort.InferenceSession.create(model, {
+      executionProviders: ["wasm"],
+      ...ORT_SESSION_OPTIONS,
+    });
+    ep = "wasm";
+  }
+  onPhase?.(3, total);
+  return { session, ep };
+}
+
+function ensureYoloSession(
+  onPhase?: (loaded: number, total: number) => void,
+): Promise<WarmYolo> {
+  if (warmYolo) {
+    onPhase?.(3, 3);
+    return Promise.resolve(warmYolo);
+  }
+  if (!warmYoloPromise) {
+    warmYoloPromise = createYoloSession(onPhase)
+      .then((w) => {
+        warmYolo = w;
+        return w;
+      })
+      .catch((err) => {
+        warmYoloPromise = null;
+        throw err;
+      });
+  }
+  return warmYoloPromise;
+}
+
+export async function preloadYoloSession(emit?: Emit): Promise<void> {
+  await ensureYoloSession((loaded, total) => emit?.({ type: "modelProgress", loaded, total }));
+}
+
 export class YoloFaceOnnxDetector implements FaceDetector {
   readonly ep: DetectorEP;
 
   private readonly session: ort.InferenceSession;
+  private readonly ownsSession: boolean;
   private readonly layout: LetterboxLayout;
   private readonly encodeW: number;
   private readonly encodeH: number;
@@ -30,27 +96,7 @@ export class YoloFaceOnnxDetector implements FaceDetector {
   private readonly inputName: string;
 
   static async create(encodeW: number, encodeH: number): Promise<YoloFaceOnnxDetector> {
-    configureOrtEnv();
-    const model = await loadYoloModel();
-
-    let session: ort.InferenceSession;
-    let ep: DetectorEP;
-    try {
-      session = await ort.InferenceSession.create(model, {
-        executionProviders: ["webgpu"],
-        ...ORT_SESSION_OPTIONS,
-      });
-      ep = "webgpu";
-    } catch (err) {
-      logger.warn(
-        `ONNX Runtime WebGPU EP unavailable (${err instanceof Error ? err.message : err}); using WASM EP.`,
-      );
-      session = await ort.InferenceSession.create(model, {
-        executionProviders: ["wasm"],
-        ...ORT_SESSION_OPTIONS,
-      });
-      ep = "wasm";
-    }
+    const { session, ep } = await ensureYoloSession();
     return new YoloFaceOnnxDetector(session, ep, encodeW, encodeH);
   }
 
@@ -61,6 +107,7 @@ export class YoloFaceOnnxDetector implements FaceDetector {
     encodeH: number,
   ) {
     this.session = session;
+    this.ownsSession = false;
     this.ep = ep;
     this.encodeW = encodeW;
     this.encodeH = encodeH;
@@ -115,6 +162,6 @@ export class YoloFaceOnnxDetector implements FaceDetector {
   }
 
   dispose(): void {
-    void this.session.release();
+    if (this.ownsSession) void this.session.release();
   }
 }

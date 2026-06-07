@@ -2,25 +2,31 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePipeline } from "@/hooks/usePipeline";
-import { saveBlob } from "@/lib/fileTarget";
 import { DEFAULT_JOB_CONFIG, type JobConfig } from "@/lib/types";
-import { CapabilityBadge } from "./CapabilityBadge";
-import { UnsupportedNotice } from "./UnsupportedNotice";
-import { Dropzone } from "./Dropzone";
-import { Controls } from "./Controls";
-import { PreviewPlayer } from "./PreviewPlayer";
-import { FaceGallery } from "./FaceGallery";
-
-function formatMB(bytes: number): string {
-  return (bytes / 1_000_000).toFixed(1);
-}
+import { Button } from "@/components/ui/Button";
+import { Navbar, type Tab } from "@/components/screens/Navbar";
+import { ModelLoading } from "@/components/screens/ModelLoading";
+import { Uploader } from "@/components/screens/Uploader";
+import { ChooseMode } from "@/components/screens/ChooseMode";
+import { SelectFaces } from "@/components/screens/SelectFaces";
+import { Processing } from "@/components/screens/Processing";
+import { Preview } from "@/components/screens/Preview";
+import { EmptyPage } from "@/components/screens/EmptyPage";
+import { UnsupportedNotice } from "@/components/UnsupportedNotice";
 
 export default function App() {
-  const { report, status, job, start, scan, blurSelected, cancel, reset } = usePipeline();
+  const { report, status, modelStatus, modelProgress, job, start, scan, blurSelected, cancel, reset } =
+    usePipeline();
   const [file, setFile] = useState<File | null>(null);
   const [config, setConfig] = useState<JobConfig>(DEFAULT_JOB_CONFIG);
+  const [tab, setTab] = useState<Tab>("home");
+  const [dark, setDark] = useState(false);
   const originalUrlRef = useRef<string | null>(null);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+  }, [dark]);
 
   useEffect(() => {
     return () => {
@@ -34,6 +40,9 @@ export default function App() {
     setOriginalUrl(originalUrlRef.current);
   };
 
+  const setDensity = (v: number) => setConfig((c) => ({ ...c, density: v }));
+  const setKeepAudio = (v: boolean) => setConfig((c) => ({ ...c, keepAudio: v }));
+
   const onPick = (f: File) => {
     reset();
     setFile(f);
@@ -45,139 +54,125 @@ export default function App() {
     setOriginal(null);
   };
 
-  const processing = job.status === "processing";
+  const booting = status === "probing" || (status === "ready" && modelStatus !== "ready");
+
+  let body: React.ReactNode;
+
+  if (status === "error") {
+    body = (
+      <div className="notice notice-error" role="alert">
+        <h2>Couldn&rsquo;t start the engine</h2>
+        <p>The background processing worker failed to load. Try reloading the page.</p>
+      </div>
+    );
+  } else if (status === "unsupported" && report) {
+    body = <UnsupportedNotice report={report} />;
+  } else if (booting) {
+    body = <ModelLoading progress={modelProgress} checking={status === "probing"} />;
+  } else if (tab !== "home") {
+    body = <EmptyPage which={tab} onHome={() => setTab("home")} />;
+  } else if (job.status === "cancelled") {
+    body = (
+      <div className="sb-empty">
+        <h2>Processing cancelled</h2>
+        <p>No changes were made. You can pick up where you left off or start fresh.</p>
+        <div className="sb-empty__actions">
+          {file ? (
+            <Button variant="outline" onClick={reset}>
+              Back to options
+            </Button>
+          ) : null}
+          <Button variant="primary" onClick={onReset}>
+            Upload a new video
+          </Button>
+        </div>
+      </div>
+    );
+  } else if (job.status === "error") {
+    body = (
+      <div className="sb-empty">
+        <h2>Something went wrong</h2>
+        <p>{job.error ?? "The video couldn't be processed."}</p>
+        <div className="sb-empty__actions">
+          {file ? (
+            <Button variant="outline" onClick={reset}>
+              Try again
+            </Button>
+          ) : null}
+          <Button variant="primary" onClick={onReset}>
+            Upload a new video
+          </Button>
+        </div>
+      </div>
+    );
+  } else if (!file || job.status === "idle") {
+    body = !file ? (
+      <Uploader onFile={onPick} />
+    ) : (
+      <ChooseMode
+        file={file}
+        originalUrl={originalUrl ?? ""}
+        density={config.density}
+        setDensity={setDensity}
+        keepAudio={config.keepAudio}
+        setKeepAudio={setKeepAudio}
+        onBack={onReset}
+        onBlurAll={() => start(file, config)}
+        onSelect={() => scan(file, config)}
+      />
+    );
+  } else if (job.status === "scanning") {
+    body = <Processing mode="scanning" progress={job.scanProgress} onCancel={cancel} />;
+  } else if (job.status === "selecting" && file) {
+    body = (
+      <SelectFaces
+        faces={job.faces}
+        thumbnails={job.faceThumbs}
+        originalUrl={originalUrl ?? ""}
+        density={config.density}
+        setDensity={setDensity}
+        onBack={reset}
+        onConfirm={(keepIds) => blurSelected(file, keepIds, config)}
+      />
+    );
+  } else if (job.status === "processing") {
+    body = (
+      <Processing
+        mode="blurring"
+        progress={job.progress}
+        framesDone={job.framesDone}
+        fps={job.throughputFps}
+        onCancel={cancel}
+      />
+    );
+  } else if (job.status === "done" && job.result && originalUrl && report) {
+    body = (
+      <Preview
+        originalUrl={originalUrl}
+        processedUrl={job.result.url}
+        blob={job.result.blob}
+        fileName={job.result.fileName}
+        fileSystemAccess={report.fileSystemAccess}
+        onRestart={onReset}
+      />
+    );
+  }
+
+  const viewKey = `${tab}:${file ? "f" : "n"}:${booting ? "boot" : job.status}`;
 
   return (
-    <main className="app">
-      <header className="app-header">
-        <h1>
-          Face<span className="accent">Blur</span>
-        </h1>
-        <p className="tagline">
-          Blur every face in your video — entirely in your browser. Your footage never leaves
-          your device.
-        </p>
-      </header>
-
-      {status === "probing" && <p className="status">Checking your browser&hellip;</p>}
-
-      {status === "error" && (
-        <div className="notice notice-error" role="alert">
-          <h2>Couldn&rsquo;t start the engine</h2>
-          <p>The background processing worker failed to load. Try reloading the page.</p>
+    <div className="sb-app">
+      <Navbar tab={tab} onTab={setTab} dark={dark} onToggleTheme={() => setDark((d) => !d)} />
+      <main className="sb-main">
+        <div className="sb-stagewrap">
+          <div className="sb-fade" key={viewKey}>
+            {body}
+          </div>
         </div>
-      )}
-
-      {report && status === "unsupported" && <UnsupportedNotice report={report} />}
-
-      {report && status === "ready" && (
-        <section className="panel">
-          <CapabilityBadge report={report} />
-
-          {!file && <Dropzone onFile={onPick} />}
-
-          {file && (job.status === "idle" || job.status === "error") && (
-            <div className="card">
-              <p className="status">
-                <strong>{file.name}</strong> · {formatMB(file.size)} MB
-              </p>
-              {job.status === "error" && (
-                <p className="status error">{job.error ?? "Something went wrong."}</p>
-              )}
-              <Controls config={config} onChange={setConfig} />
-              <div className="row">
-                <button className="btn btn-primary" onClick={() => scan(file, config)}>
-                  Scan &amp; choose faces
-                </button>
-                <button className="btn" onClick={() => start(file, config)}>
-                  Blur all faces
-                </button>
-                <button className="btn" onClick={onReset}>
-                  Choose another
-                </button>
-              </div>
-            </div>
-          )}
-
-          {job.status === "scanning" && (
-            <div className="card">
-              <p className="status">Finding faces&hellip; {Math.round(job.scanProgress * 100)}%</p>
-              <progress className="bar" max={1} value={job.scanProgress} />
-              <div className="row">
-                <button className="btn" onClick={cancel}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-
-          {job.status === "selecting" && file && (
-            <FaceGallery
-              faces={job.faces}
-              thumbnails={job.faceThumbs}
-              onConfirm={(keepIds) => blurSelected(file, keepIds, config)}
-              onBack={reset}
-            />
-          )}
-
-          {processing && (
-            <div className="card">
-              <p className="status">
-                Blurring faces&hellip; {Math.round(job.progress * 100)}% · {job.framesDone} frames
-                {job.throughputFps > 0 ? ` · ${job.throughputFps.toFixed(0)} fps` : ""}
-              </p>
-              <progress className="bar" max={1} value={job.progress} />
-              <div className="row">
-                <button className="btn" onClick={cancel}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-
-          {job.status === "done" && job.result && originalUrl && (
-            <div className="card">
-              <PreviewPlayer originalUrl={originalUrl} processedUrl={job.result.url} />
-              <p className="hint">
-                Review the result before sharing — automatic detection is best-effort and may miss
-                hard cases.
-              </p>
-              <div className="row">
-                <button
-                  className="btn btn-primary"
-                  onClick={() => saveBlob(job.result!.blob, job.result!.fileName)}
-                >
-                  {report.fileSystemAccess ? "Save video" : "Download video"}
-                </button>
-                <button className="btn" onClick={() => file && start(file, config)}>
-                  Re-run
-                </button>
-                <button className="btn" onClick={onReset}>
-                  New video
-                </button>
-              </div>
-            </div>
-          )}
-
-          {job.status === "cancelled" && (
-            <div className="card">
-              <p className="status">Processing cancelled.</p>
-              <div className="row">
-                <button className="btn btn-primary" onClick={() => file && start(file, config)}>
-                  Try again
-                </button>
-                <button className="btn" onClick={onReset}>
-                  New video
-                </button>
-              </div>
-            </div>
-          )}
-        </section>
-      )}
-
-      <footer className="app-footer">
-        <span>No uploads · No tracking · Processed entirely on your device</span>
+      </main>
+      <footer className="sb-foot">
+        SmartBlur — local, private video anonymization · GDPR compliant · No sign-up
       </footer>
-    </main>
+    </div>
   );
 }

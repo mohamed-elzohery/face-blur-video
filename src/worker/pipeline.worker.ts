@@ -2,6 +2,7 @@ import { probeFeatures } from "@/lib/capabilities";
 import type { MainToWorker, WorkerToMain } from "@/lib/types";
 import { PipelineError } from "./errors";
 import { runPipeline } from "./pipeline";
+import { preloadYoloSession } from "./yolo-detector";
 import { runAnalyze } from "./analyze";
 import { runRenderFromPlan } from "./renderFromPlan";
 import { sameSource, sourceIdentity, type AnalyzedPlan } from "./renderPlan";
@@ -38,6 +39,19 @@ ctx.onmessage = async (e: MessageEvent<MainToWorker>) => {
     case "probe": {
       const features = await probeFeatures();
       post({ type: "capabilities", features });
+      break;
+    }
+    case "preload": {
+      try {
+        await preloadYoloSession((m, t) => post(m, t));
+      } catch (err) {
+        post({
+          type: "log",
+          level: "warn",
+          msg: `Model preload failed: ${err instanceof Error ? err.message : err}`,
+        });
+      }
+      post({ type: "modelsReady" });
       break;
     }
     case "start": {

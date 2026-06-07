@@ -5,7 +5,7 @@ import { faceQuality, laplacianVariance } from "@/lib/model/face-quality";
 import { logger } from "@/lib/log";
 import { PipelineError } from "./errors";
 import { openSource } from "./io/source";
-import { resolvedNumThreads } from "./detector";
+import { DEFAULT_SENSITIVITY, resolvedNumThreads } from "./detector";
 import { YoloFaceOnnxDetector } from "./yolo-detector";
 import { SFaceOnnxEmbedder, type FaceEmbedder } from "./embedder";
 import { buildIdentities } from "./gallery";
@@ -144,7 +144,7 @@ export async function runAnalyze(
 
     tracker.predict();
     const detStart = performance.now();
-    const dets = await detector.detect(sample, config.sensitivity);
+    const dets = await detector.detect(sample, DEFAULT_SENSITIVITY);
     detectMs += performance.now() - detStart;
     tracker.update(dets);
 

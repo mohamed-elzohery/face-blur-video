@@ -16,6 +16,8 @@ export interface FaceDetector {
 const DETECT_LONG_SIDE = 480;
 const NMS_IOU = 0.3;
 
+export const DEFAULT_SENSITIVITY = 0.35;
+
 let resolvedThreads = 1;
 export function resolvedNumThreads(): number {
   return resolvedThreads;

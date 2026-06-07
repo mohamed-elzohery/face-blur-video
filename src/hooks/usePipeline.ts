@@ -13,6 +13,7 @@ import {
 } from "@/lib/types";
 
 export type PipelineStatus = "probing" | "ready" | "unsupported" | "error";
+export type ModelStatus = "loading" | "ready" | "error";
 export type JobStatus =
   | "idle"
   | "scanning"
@@ -60,6 +61,8 @@ const INITIAL_JOB: JobState = {
 export interface UsePipeline {
   report: CapabilityReport | null;
   status: PipelineStatus;
+  modelStatus: ModelStatus;
+  modelProgress: number;
   job: JobState;
   start: (file: File, config?: JobConfig) => void;
   scan: (file: File, config?: JobConfig) => void;
@@ -76,6 +79,8 @@ export function usePipeline(): UsePipeline {
 
   const [report, setReport] = useState<CapabilityReport | null>(null);
   const [status, setStatus] = useState<PipelineStatus>("probing");
+  const [modelStatus, setModelStatus] = useState<ModelStatus>("loading");
+  const [modelProgress, setModelProgress] = useState(0);
   const [job, setJob] = useState<JobState>(INITIAL_JOB);
 
   const closeThumbs = useCallback(() => {
@@ -96,6 +101,20 @@ export function usePipeline(): UsePipeline {
           const decided = decideCapabilities({ ...msg.features, ...detectMainFeatures() });
           setReport(decided);
           setStatus(decided.supported ? "ready" : "unsupported");
+          if (decided.supported) {
+            setModelStatus("loading");
+            setModelProgress(0);
+            worker.postMessage({ type: "preload" } satisfies MainToWorker);
+          }
+          break;
+        }
+        case "modelProgress": {
+          setModelProgress(msg.total > 0 ? Math.min(1, msg.loaded / msg.total) : 0);
+          break;
+        }
+        case "modelsReady": {
+          setModelProgress(1);
+          setModelStatus("ready");
           break;
         }
         case "scanStarted": {
@@ -157,7 +176,6 @@ export function usePipeline(): UsePipeline {
           break;
         }
         case "log":
-        case "modelProgress":
           break;
       }
     };
@@ -222,5 +240,5 @@ export function usePipeline(): UsePipeline {
     setJob(INITIAL_JOB);
   }, [closeThumbs]);
 
-  return { report, status, job, start, scan, blurSelected, cancel, reset };
+  return { report, status, modelStatus, modelProgress, job, start, scan, blurSelected, cancel, reset };
 }

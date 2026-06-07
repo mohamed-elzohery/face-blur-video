@@ -66,8 +66,8 @@ export interface FaceMeta {
 
 export interface JobConfig {
   style: BlurStyle;
-  strength: number;
-  sensitivity: number;
+  density: number;
+  keepAudio: boolean;
   paddingFrac: number;
   detectEveryN: number;
   engine: DetectorEngine;
@@ -81,8 +81,8 @@ export const STYLE_CODE: Record<BlurStyle, number> = {
 
 export const DEFAULT_JOB_CONFIG: JobConfig = {
   style: "gaussian",
-  strength: 0.6,
-  sensitivity: 0.35,
+  density: 0.6,
+  keepAudio: true,
   paddingFrac: 0.25,
   detectEveryN: 2,
   engine: "yolo",
@@ -90,6 +90,7 @@ export const DEFAULT_JOB_CONFIG: JobConfig = {
 
 export type MainToWorker =
   | { type: "probe" }
+  | { type: "preload" }
   | { type: "start"; file: File; config: JobConfig }
   | { type: "scan"; file: File; config: JobConfig }
   | { type: "blurSelected"; file: File; config: JobConfig; keepIds: number[] }
@@ -98,6 +99,7 @@ export type MainToWorker =
 export type WorkerToMain =
   | { type: "capabilities"; features: RawFeatures }
   | { type: "modelProgress"; loaded: number; total: number }
+  | { type: "modelsReady" }
   | {
       type: "scanStarted";
       durationUs: number;

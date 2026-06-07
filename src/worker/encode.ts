@@ -19,8 +19,8 @@ export const MAX_BLOCK_FRAC = 0.22;
 export const PROGRESS_INTERVAL_MS = 150;
 
 export function rendererOptionsFor(config: JobConfig): RendererOptions {
-  const strength = Math.min(1, Math.max(0, config.strength));
-  const blockFrac = MIN_BLOCK_FRAC + strength * (MAX_BLOCK_FRAC - MIN_BLOCK_FRAC);
+  const density = Math.min(1, Math.max(0, config.density));
+  const blockFrac = MIN_BLOCK_FRAC + density * (MAX_BLOCK_FRAC - MIN_BLOCK_FRAC);
   return {
     minBlockPx: MIN_BLOCK_PX,
     blockFrac,

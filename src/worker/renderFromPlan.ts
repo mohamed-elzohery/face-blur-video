@@ -54,7 +54,8 @@ export async function runRenderFromPlan(
   });
   output.addVideoTrack(videoSource, { rotation: 0 });
 
-  const audioPlan = await setupAudio(output, format, audioTrack);
+  const audioInput = config.keepAudio ? audioTrack : null;
+  const audioPlan = await setupAudio(output, format, audioInput);
 
   await output.start();
 
@@ -109,8 +110,8 @@ export async function runRenderFromPlan(
     }
   }
 
-  if (!cancel.cancelled && audioTrack) {
-    await runAudio(audioPlan, audioTrack, startOffsetSec, cancel, emit);
+  if (!cancel.cancelled && audioInput) {
+    await runAudio(audioPlan, audioInput, startOffsetSec, cancel, emit);
   }
 
   if (cancel.cancelled) {
