@@ -18,6 +18,7 @@ export interface Identity {
 
 export interface IdentitiesResult {
   identities: Identity[];
+  gallery: GalleryIdentity[];
   trackToIdentity: Map<number, number>;
 }
 
@@ -50,5 +51,5 @@ export function buildIdentities(
   }));
   const trackToIdentity = assignTracksToIdentities(tracks, gallery);
 
-  return { identities, trackToIdentity };
+  return { identities, gallery, trackToIdentity };
 }

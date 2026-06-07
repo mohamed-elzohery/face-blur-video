@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   assignTracksToIdentities,
+  bestIdentityForEmbed,
   IDENTITY_CONFIDENCE_FLOOR,
   UNKNOWN_IDENTITY,
   type GalleryIdentity,
@@ -84,5 +85,22 @@ describe("assignTracksToIdentities", () => {
   it("exposes a confidence floor below the cluster merge threshold", () => {
     expect(IDENTITY_CONFIDENCE_FLOOR).toBeGreaterThan(0);
     expect(IDENTITY_CONFIDENCE_FLOOR).toBeLessThan(0.363);
+  });
+});
+
+describe("bestIdentityForEmbed", () => {
+  it("returns the argmax identity by max-cosine over its members and the score", () => {
+    const gallery: GalleryIdentity[] = [
+      { identityId: 1, members: [unit(0), unit(80)] },
+      { identityId: 2, members: [unit(40)] },
+    ];
+    const m = bestIdentityForEmbed(unit(2), gallery);
+    expect(m.identityId).toBe(1);
+    expect(m.score).toBeGreaterThan(0.99);
+  });
+
+  it("returns UNKNOWN for an empty gallery", () => {
+    const m = bestIdentityForEmbed(unit(0), []);
+    expect(m.identityId).toBe(UNKNOWN_IDENTITY);
   });
 });

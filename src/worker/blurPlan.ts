@@ -13,7 +13,7 @@ export interface GalleryIdentity {
   members: Float32Array[];
 }
 
-function bestIdentityForEmbed(
+export function bestIdentityForEmbed(
   emb: Float32Array,
   gallery: GalleryIdentity[],
 ): { identityId: number; score: number } {

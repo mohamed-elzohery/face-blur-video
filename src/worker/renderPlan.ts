@@ -6,6 +6,7 @@ export { UNKNOWN_IDENTITY };
 export interface PlanEntry {
   trackId: number;
   box: Box;
+  identityId: number;
 }
 
 export type FramePlan = Map<number, PlanEntry[]>;
@@ -19,7 +20,6 @@ export interface SourceIdentity {
 export interface AnalyzedPlan {
   source: SourceIdentity;
   framePlan: FramePlan;
-  trackToIdentity: Map<number, number>;
   identityCount: number;
   detectorEP: DetectorEP;
   config: JobConfig;
@@ -37,11 +37,6 @@ export function keepSetFromSelection(keepIds: number[]): Set<number> {
   return new Set(keepIds);
 }
 
-export function shouldBlur(
-  trackId: number,
-  trackToIdentity: Map<number, number>,
-  keep: Set<number>,
-): boolean {
-  const id = trackToIdentity.get(trackId) ?? UNKNOWN_IDENTITY;
-  return id === UNKNOWN_IDENTITY ? true : !keep.has(id);
+export function shouldBlurEntry(identityId: number, keep: Set<number>): boolean {
+  return identityId === UNKNOWN_IDENTITY ? true : !keep.has(identityId);
 }

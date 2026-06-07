@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   keepSetFromSelection,
   sameSource,
-  shouldBlur,
+  shouldBlurEntry,
   sourceIdentity,
   UNKNOWN_IDENTITY,
   type SourceIdentity,
@@ -21,29 +21,20 @@ describe("keepSetFromSelection", () => {
   });
 });
 
-describe("shouldBlur", () => {
-  const map = new Map<number, number>([
-    [10, 1],
-    [11, 2],
-    [12, UNKNOWN_IDENTITY],
-  ]);
-
-  it("keeps a track whose identity is selected", () => {
-    expect(shouldBlur(10, map, keepSetFromSelection([1]))).toBe(false);
+describe("shouldBlurEntry", () => {
+  it("keeps a face whose identity is selected", () => {
+    expect(shouldBlurEntry(1, keepSetFromSelection([1]))).toBe(false);
   });
-  it("blurs a track whose identity is not selected", () => {
-    expect(shouldBlur(11, map, keepSetFromSelection([1]))).toBe(true);
+  it("blurs a face whose identity is not selected", () => {
+    expect(shouldBlurEntry(2, keepSetFromSelection([1]))).toBe(true);
   });
-  it("blurs an UNKNOWN track (privacy-first)", () => {
-    expect(shouldBlur(12, map, keepSetFromSelection([1, 2]))).toBe(true);
-  });
-  it("blurs a track absent from the map (privacy-first)", () => {
-    expect(shouldBlur(99, map, keepSetFromSelection([1, 2]))).toBe(true);
+  it("blurs an UNKNOWN face (privacy-first)", () => {
+    expect(shouldBlurEntry(UNKNOWN_IDENTITY, keepSetFromSelection([1, 2]))).toBe(true);
   });
   it("blurs everyone when nothing is selected", () => {
     const keep = keepSetFromSelection([]);
-    expect(shouldBlur(10, map, keep)).toBe(true);
-    expect(shouldBlur(11, map, keep)).toBe(true);
+    expect(shouldBlurEntry(1, keep)).toBe(true);
+    expect(shouldBlurEntry(2, keep)).toBe(true);
   });
 });
 

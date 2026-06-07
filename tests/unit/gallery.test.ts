@@ -59,4 +59,15 @@ describe("buildIdentities", () => {
     expect(trackToIdentity.get(1)).toBe(1);
     expect(trackToIdentity.get(9)).toBe(-1);
   });
+
+  it("returns a gallery whose members are the cluster's member embeddings", () => {
+    const records: TrackedRecord[] = [
+      { emb: unit(0), q: 0.9, frameId: 0, trackId: 1 },
+      { emb: unit(2), q: 0.9, frameId: 1, trackId: 1 },
+    ];
+    const { identities, gallery } = buildIdentities(records, [1], new Map([[1, [unit(0)]]]));
+    expect(gallery.length).toBe(identities.length);
+    expect(gallery[0].identityId).toBe(identities[0].identityId);
+    expect(gallery[0].members.length).toBe(identities[0].memberRecordIdxs.length);
+  });
 });

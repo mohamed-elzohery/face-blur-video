@@ -17,7 +17,7 @@ import {
   runAudio,
   setupAudio,
 } from "./encode";
-import { keepSetFromSelection, shouldBlur, type AnalyzedPlan, type PlanEntry } from "./renderPlan";
+import { keepSetFromSelection, shouldBlurEntry, type AnalyzedPlan, type PlanEntry } from "./renderPlan";
 import type { Cancel, Emit } from "./runtime";
 
 export async function runRenderFromPlan(
@@ -74,7 +74,7 @@ export async function runRenderFromPlan(
     const entries = plan.framePlan.get(sample.microsecondTimestamp) ?? lastEntries;
     lastEntries = entries;
     const boxes = entries
-      .filter((e) => shouldBlur(e.trackId, plan.trackToIdentity, keep))
+      .filter((e) => shouldBlurEntry(e.identityId, keep))
       .map((e) => e.box);
     await renderer.render(sample, boxes);
     await videoSource.add(Math.max(0, sample.timestamp - startOffsetSec), sample.duration);

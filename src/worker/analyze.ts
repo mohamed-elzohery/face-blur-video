@@ -1,19 +1,26 @@
 import { VideoSampleSink, type VideoSample } from "mediabunny";
-import type { Box, FaceMeta, JobConfig } from "@/lib/types";
+import type { Box, DetectedFace, FaceMeta, JobConfig } from "@/lib/types";
 import { ALIGNED_SIZE, warpFaceTo112 } from "@/lib/model/face-align";
 import { faceQuality, laplacianVariance } from "@/lib/model/face-quality";
 import { PipelineError } from "./errors";
 import { openSource } from "./io/source";
 import { YoloFaceOnnxDetector } from "./yolo-detector";
 import { SFaceOnnxEmbedder, type FaceEmbedder } from "./embedder";
-import { buildIdentities, type TrackedRecord } from "./gallery";
+import { buildIdentities } from "./gallery";
 import { KalmanTracker } from "./tracker";
-import type { AnalyzedPlan, FramePlan, PlanEntry } from "./renderPlan";
+import {
+  resolveFramePlan,
+  sampleGalleryRecords,
+  type GalleryCandidate,
+  type RawFace,
+} from "./framePlan";
+import type { AnalyzedPlan } from "./renderPlan";
 import { sourceIdentity } from "./renderPlan";
 import type { Cancel, Emit } from "./runtime";
 
-const MAX_EMBEDS = 800;
-const MAX_EMBEDS_PER_TRACK = 6;
+const MAX_EMBEDS = 12000;
+const EMBED_MIN_FACE_PX = 40;
+const EMBED_MIN_CONF = 0.5;
 const THUMB_SIZE = 160;
 const THUMB_PAD = 0.35;
 const PROGRESS_INTERVAL_MS = 120;
@@ -27,10 +34,15 @@ const ANALYZE_TRACKER = {
   measNoise: 5e-4,
 };
 
-interface TrackAccum {
-  embeds: Float32Array[];
-  bestThumb: ImageData | null;
-  bestQ: number;
+interface ThumbAccum {
+  thumb: ImageData;
+  q: number;
+}
+
+function shouldEmbed(det: DetectedFace, W: number, H: number): boolean {
+  if (!det.landmarks) return false;
+  const facePx = Math.min(det.w * W, det.h * H);
+  return facePx >= EMBED_MIN_FACE_PX && det.score >= EMBED_MIN_CONF;
 }
 
 function thumbnailData(
@@ -106,9 +118,10 @@ export async function runAnalyze(
   }
 
   const tracker = new KalmanTracker({ ...ANALYZE_TRACKER, paddingFrac: config.paddingFrac });
-  const framePlan: FramePlan = new Map();
-  const accums = new Map<number, TrackAccum>();
-  const records: TrackedRecord[] = [];
+  const rawFrames = new Map<number, RawFace[]>();
+  const perTrackCandidates = new Map<number, GalleryCandidate[]>();
+  const trackEmbeds = new Map<number, Float32Array[]>();
+  const thumbs = new Map<number, ThumbAccum>();
   let totalEmbeds = 0;
   let lastProgress = 0;
 
@@ -126,27 +139,18 @@ export async function runAnalyze(
     }
 
     tracker.predict();
-    const detectFrame = frameIndex % config.detectEveryN === 0;
-    if (detectFrame) {
-      const dets = await detector.detect(sample, config.sensitivity);
-      tracker.update(dets);
+    const dets = await detector.detect(sample, config.sensitivity);
+    tracker.update(dets);
 
-      for (const { id, det } of tracker.lastMatches()) {
-        if (totalEmbeds >= MAX_EMBEDS) break;
-        if (!det.landmarks) continue;
-        const accum = accums.get(id);
-        if (accum && accum.embeds.length >= MAX_EMBEDS_PER_TRACK) continue;
+    const matchById = new Map<number, DetectedFace>();
+    for (const { id, det } of tracker.lastMatches()) matchById.set(id, det);
 
-        const prelim = faceQuality({
-          box: det,
-          score: det.score,
-          W: displayWidth,
-          H: displayHeight,
-          landmarks: det.landmarks,
-        });
-        if (!prelim.eligible) continue;
-
-        const lmPx = det.landmarks.pts.map(
+    const faces: RawFace[] = [];
+    for (const { id, box } of tracker.boxesWithIds()) {
+      const det = matchById.get(id);
+      let emb: Float32Array | null = null;
+      if (det && shouldEmbed(det, displayWidth, displayHeight) && totalEmbeds < MAX_EMBEDS) {
+        const lmPx = det.landmarks!.pts.map(
           ([nx, ny]): [number, number] => [nx * displayWidth, ny * displayHeight],
         );
         warpFaceTo112(sample, lmPx, alignCtx);
@@ -160,26 +164,28 @@ export async function runAnalyze(
           landmarks: det.landmarks,
           sharpness,
         });
-        if (!quality.eligible) continue;
-
-        const emb = await embedder.embed(aligned);
-        records.push({ emb, q: quality.q, frameId: frameIndex, trackId: id });
-        const target = accum ?? { embeds: [], bestThumb: null, bestQ: -Infinity };
-        target.embeds.push(emb);
-        if (quality.q > target.bestQ) {
-          target.bestQ = quality.q;
-          target.bestThumb = thumbnailData(sample, det, displayWidth, displayHeight, thumbCtx);
-        }
-        if (!accum) accums.set(id, target);
+        emb = await embedder.embed(aligned);
         totalEmbeds += 1;
+
+        const cand = perTrackCandidates.get(id);
+        if (cand) cand.push({ emb, q: quality.q, frameId: frameIndex });
+        else perTrackCandidates.set(id, [{ emb, q: quality.q, frameId: frameIndex }]);
+        const embs = trackEmbeds.get(id);
+        if (embs) embs.push(emb);
+        else trackEmbeds.set(id, [emb]);
+
+        const bt = thumbs.get(id);
+        if (!bt || quality.q > bt.q) {
+          thumbs.set(id, {
+            thumb: thumbnailData(sample, det, displayWidth, displayHeight, thumbCtx),
+            q: quality.q,
+          });
+        }
       }
+      faces.push({ box, trackId: id, emb });
     }
 
-    const entries: PlanEntry[] = tracker
-      .boxesWithIds()
-      .map(({ id, box }) => ({ trackId: id, box }));
-    framePlan.set(sample.microsecondTimestamp, entries);
-
+    rawFrames.set(sample.microsecondTimestamp, faces);
     const currentTimeUs = sample.microsecondTimestamp;
     sample.close();
     frameIndex += 1;
@@ -201,11 +207,15 @@ export async function runAnalyze(
   src.input.dispose();
 
   const allTrackIds = new Set<number>();
-  for (const entries of framePlan.values()) for (const e of entries) allTrackIds.add(e.trackId);
-  const trackEmbeds = new Map<number, Float32Array[]>();
-  for (const [id, accum] of accums) trackEmbeds.set(id, accum.embeds);
+  for (const faces of rawFrames.values()) for (const f of faces) allTrackIds.add(f.trackId);
 
-  const { identities, trackToIdentity } = buildIdentities(records, [...allTrackIds], trackEmbeds);
+  const galleryRecords = sampleGalleryRecords(perTrackCandidates);
+  const { identities, gallery, trackToIdentity } = buildIdentities(
+    galleryRecords,
+    [...allTrackIds],
+    trackEmbeds,
+  );
+  const framePlan = resolveFramePlan(rawFrames, gallery, trackToIdentity);
 
   const faces: FaceMeta[] = [];
   const centroids: Float32Array[] = [];
@@ -214,20 +224,20 @@ export async function runAnalyze(
     let bestIdx = idn.memberRecordIdxs[0];
     let bestQ = -Infinity;
     for (const m of idn.memberRecordIdxs) {
-      if (records[m].q > bestQ) {
-        bestQ = records[m].q;
+      if (galleryRecords[m].q > bestQ) {
+        bestQ = galleryRecords[m].q;
         bestIdx = m;
       }
     }
-    const thumb = accums.get(records[bestIdx].trackId)?.bestThumb;
-    if (!thumb) continue;
-    const bitmap = await createImageBitmap(thumb);
+    const thumbAccum = thumbs.get(galleryRecords[bestIdx].trackId);
+    if (!thumbAccum) continue;
+    const bitmap = await createImageBitmap(thumbAccum.thumb);
     faces.push({
       identityId: idn.identityId,
       support: idn.support,
       quality: idn.quality,
-      thumbW: thumb.width,
-      thumbH: thumb.height,
+      thumbW: thumbAccum.thumb.width,
+      thumbH: thumbAccum.thumb.height,
     });
     centroids.push(idn.centroid);
     thumbnails.push(bitmap);
@@ -248,7 +258,6 @@ export async function runAnalyze(
   return {
     source: sourceIdentity(file),
     framePlan,
-    trackToIdentity,
     identityCount: identities.length,
     detectorEP: detector.ep,
     config,
