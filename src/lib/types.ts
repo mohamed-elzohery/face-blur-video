@@ -71,6 +71,7 @@ export interface JobConfig {
   paddingFrac: number;
   detectEveryN: number;
   engine: DetectorEngine;
+  detectLongSide?: number;
 }
 
 export const STYLE_CODE: Record<BlurStyle, number> = {

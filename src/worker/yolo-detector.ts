@@ -84,12 +84,17 @@ export class YoloFaceOnnxDetector implements FaceDetector {
   private readonly canvas: OffscreenCanvas;
   private readonly ctx: OffscreenCanvasRenderingContext2D;
   private readonly input: Float32Array;
+  private readonly inputSize: number;
   private readonly inputArea: number;
   private readonly inputName: string;
 
-  static async create(encodeW: number, encodeH: number): Promise<YoloFaceOnnxDetector> {
+  static async create(
+    encodeW: number,
+    encodeH: number,
+    inputSize: number = YOLO_INPUT_SIZE,
+  ): Promise<YoloFaceOnnxDetector> {
     const { session, ep } = await ensureYoloSession();
-    return new YoloFaceOnnxDetector(session, ep, encodeW, encodeH);
+    return new YoloFaceOnnxDetector(session, ep, encodeW, encodeH, inputSize);
   }
 
   private constructor(
@@ -97,36 +102,39 @@ export class YoloFaceOnnxDetector implements FaceDetector {
     ep: DetectorEP,
     encodeW: number,
     encodeH: number,
+    inputSize: number,
   ) {
     this.session = session;
     this.ownsSession = false;
     this.ep = ep;
     this.encodeW = encodeW;
     this.encodeH = encodeH;
-    this.layout = computeLetterboxLayout(encodeW, encodeH, YOLO_INPUT_SIZE);
-    this.canvas = new OffscreenCanvas(YOLO_INPUT_SIZE, YOLO_INPUT_SIZE);
+    this.inputSize = Math.max(32, Math.round(inputSize / 32) * 32);
+    this.layout = computeLetterboxLayout(encodeW, encodeH, this.inputSize);
+    this.canvas = new OffscreenCanvas(this.inputSize, this.inputSize);
     const ctx = this.canvas.getContext("2d", { alpha: false, willReadFrequently: true });
     if (!ctx) throw new Error("Failed to acquire a 2D detection context.");
     this.ctx = ctx;
-    this.inputArea = YOLO_INPUT_SIZE * YOLO_INPUT_SIZE;
+    this.inputArea = this.inputSize * this.inputSize;
     this.input = new Float32Array(3 * this.inputArea);
     this.inputName = session.inputNames[0];
   }
 
   async detect(sample: VideoSample, scoreThreshold: number): Promise<DetectedFace[]> {
     const { scaledW, scaledH, padX, padY } = this.layout;
+    const size = this.inputSize;
     this.ctx.fillStyle = LETTERBOX_FILL;
-    this.ctx.fillRect(0, 0, YOLO_INPUT_SIZE, YOLO_INPUT_SIZE);
+    this.ctx.fillRect(0, 0, size, size);
     sample.draw(this.ctx, padX, padY, scaledW, scaledH);
 
-    const rgba = this.ctx.getImageData(0, 0, YOLO_INPUT_SIZE, YOLO_INPUT_SIZE).data;
+    const rgba = this.ctx.getImageData(0, 0, size, size).data;
     for (let p = 0, i = 0; p < this.inputArea; p++, i += 4) {
       this.input[p] = rgba[i] / 255;
       this.input[this.inputArea + p] = rgba[i + 1] / 255;
       this.input[2 * this.inputArea + p] = rgba[i + 2] / 255;
     }
 
-    const tensor = new ort.Tensor("float32", this.input, [1, 3, YOLO_INPUT_SIZE, YOLO_INPUT_SIZE]);
+    const tensor = new ort.Tensor("float32", this.input, [1, 3, size, size]);
     const result = await this.session.run({ [this.inputName]: tensor });
 
     const allDets = [];
@@ -135,7 +143,7 @@ export class YoloFaceOnnxDetector implements FaceDetector {
       const dims = t.dims as number[];
       if (dims.length !== 4) continue;
       const H = dims[2], W = dims[3];
-      const stride = YOLO_INPUT_SIZE / H;
+      const stride = size / H;
       const dets = decodeYoloOutput(t.data as Float32Array, H, W, stride, scoreThreshold);
       allDets.push(...dets);
     }

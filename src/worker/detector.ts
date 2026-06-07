@@ -44,7 +44,9 @@ export async function resolveDetectorEP(): Promise<DetectorEP> {
   let ep: DetectorEP = "wasm";
   try {
     if (typeof navigator !== "undefined" && "gpu" in navigator && navigator.gpu) {
-      const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
+      const adapter =
+        (await navigator.gpu.requestAdapter({ powerPreference: "high-performance" })) ??
+        (await navigator.gpu.requestAdapter());
       if (adapter) ep = "webgpu";
     }
   } catch {
@@ -75,7 +77,11 @@ export class YuNetOnnxDetector implements FaceDetector {
   private readonly input: Float32Array;
   private readonly inputName: string;
 
-  static async create(encodeW: number, encodeH: number): Promise<YuNetOnnxDetector> {
+  static async create(
+    encodeW: number,
+    encodeH: number,
+    inputLongSide: number = DETECT_LONG_SIDE,
+  ): Promise<YuNetOnnxDetector> {
     configureOrtEnv();
     const ep = await resolveDetectorEP();
     const model = await loadYuNetModel();
@@ -83,7 +89,7 @@ export class YuNetOnnxDetector implements FaceDetector {
       executionProviders: executionProvidersFor(ep),
       ...ORT_SESSION_OPTIONS,
     });
-    return new YuNetOnnxDetector(session, ep, encodeW, encodeH);
+    return new YuNetOnnxDetector(session, ep, encodeW, encodeH, inputLongSide);
   }
 
   private constructor(
@@ -91,12 +97,13 @@ export class YuNetOnnxDetector implements FaceDetector {
     ep: DetectorEP,
     encodeW: number,
     encodeH: number,
+    inputLongSide: number,
   ) {
     this.session = session;
     this.ep = ep;
     this.encodeW = encodeW;
     this.encodeH = encodeH;
-    this.layout = computeDetectLayout(encodeW, encodeH, DETECT_LONG_SIDE);
+    this.layout = computeDetectLayout(encodeW, encodeH, inputLongSide);
     this.canvas = new OffscreenCanvas(this.layout.detW, this.layout.detH);
     const ctx = this.canvas.getContext("2d", { alpha: false, willReadFrequently: true });
     if (!ctx) throw new Error("Failed to acquire a 2D detection context.");

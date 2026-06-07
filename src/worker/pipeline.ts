@@ -9,7 +9,12 @@ import {
 import type { JobConfig } from "@/lib/types";
 import { logger } from "@/lib/log";
 import { createRenderer } from "./blur";
-import { YuNetOnnxDetector, resolvedNumThreads, type FaceDetector } from "./detector";
+import {
+  YuNetOnnxDetector,
+  resolveDetectorEP,
+  resolvedNumThreads,
+  type FaceDetector,
+} from "./detector";
 import { YoloFaceOnnxDetector } from "./yolo-detector";
 import { PipelineError } from "./errors";
 import { FrameProcessor } from "./frameProcessor";
@@ -30,6 +35,7 @@ const TRACKER_MAX_MISSES = 1;
 const TRACKER_Q_POS = 6e-3;
 const TRACKER_Q_VEL = 8e-4;
 const TRACKER_MEAS_NOISE = 5e-4;
+const CPU_DETECT_LONG_SIDE = 480;
 
 export async function runPipeline(
   file: File,
@@ -48,12 +54,16 @@ export async function runPipeline(
     rendererOptionsFor(config),
   );
 
+  const detectorEP = await resolveDetectorEP();
+  const detectLongSide =
+    config.detectLongSide ?? (detectorEP === "webgpu" ? undefined : CPU_DETECT_LONG_SIDE);
+
   let detector: FaceDetector;
   try {
     detector =
       config.engine === "yolo"
-        ? await YoloFaceOnnxDetector.create(displayWidth, displayHeight)
-        : await YuNetOnnxDetector.create(displayWidth, displayHeight);
+        ? await YoloFaceOnnxDetector.create(displayWidth, displayHeight, detectLongSide)
+        : await YuNetOnnxDetector.create(displayWidth, displayHeight, detectLongSide);
   } catch (err) {
     renderer.dispose();
     src.input.dispose();
@@ -165,9 +175,11 @@ export async function runPipeline(
 
   const stats = processor.stats();
   const isolated = typeof crossOriginIsolated !== "undefined" && crossOriginIsolated === true;
+  const hasGpu = typeof navigator !== "undefined" && "gpu" in navigator && !!navigator.gpu;
   const elapsed = (performance.now() - startedAt) / 1000;
   const summary =
-    `blur-all: detectorEP=${detector.ep} engine=${config.engine} frames=${framesDone} ` +
+    `blur-all: detectorEP=${detector.ep} gpu=${hasGpu} blurBackend=${blurBackend} ` +
+    `engine=${config.engine} inputLong=${detectLongSide ?? "default"} frames=${framesDone} ` +
     `detects=${stats.detectCount} decodeMs=${Math.round(decodeMs)} detectMs=${Math.round(stats.detectMs)} ` +
     `renderMs=${Math.round(stats.renderMs)} encodeMs=${Math.round(encodeMs)} ` +
     `fps=${(elapsed > 0 ? framesDone / elapsed : 0).toFixed(1)} ` +
