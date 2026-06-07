@@ -55,6 +55,15 @@ describe("clusterDetections", () => {
     expect(clusters.length).toBe(2);
   });
 
+  it("keeps similar-but-distinct faces as separate identities at the default threshold", () => {
+    const records: DetRecord[] = [
+      { emb: unit(0), q: 0.9, frameId: 0 },
+      { emb: unit(60), q: 0.9, frameId: 1 },
+    ];
+    const clusters = clusterDetections(records);
+    expect(clusters.length).toBe(2);
+  });
+
   it("does not over-merge a chain (A~B, B~C, A!~C) under centroid linkage", () => {
     const records: DetRecord[] = [
       { emb: unit(0), q: 0.9, frameId: 0 },

@@ -16,7 +16,7 @@ export interface ClusterOptions {
   minSingletonQuality?: number;
 }
 
-const DEFAULT_MERGE_COSINE = 0.363;
+const DEFAULT_MERGE_COSINE = 0.50;
 const DEFAULT_MIN_SINGLETON_QUALITY = 0.5;
 
 export function cosine(a: Float32Array, b: Float32Array): number {
