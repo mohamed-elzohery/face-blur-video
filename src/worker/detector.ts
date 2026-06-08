@@ -38,22 +38,42 @@ export function configureOrtEnv(): void {
   envConfigured = true;
 }
 
+let webgpuChecked = false;
+let webgpuDevice: GPUDevice | null = null;
+let webgpuAdapterOk = false;
+
+export async function ensureWebGpuDevice(): Promise<GPUDevice | null> {
+  if (webgpuChecked) return webgpuDevice;
+  webgpuChecked = true;
+  try {
+    if (typeof navigator !== "undefined" && "gpu" in navigator && navigator.gpu) {
+      const adapter = await navigator.gpu.requestAdapter();
+      webgpuAdapterOk = adapter != null;
+      if (adapter) {
+        const device = await adapter.requestDevice();
+        ort.env.webgpu.device = device;
+        webgpuDevice = device;
+      }
+    }
+  } catch (err) {
+    logger.warn(
+      `WebGPU device init failed; falling back to wasm: ${err instanceof Error ? err.message : err}`,
+    );
+    webgpuDevice = null;
+  }
+  return webgpuDevice;
+}
+
+export function webgpuAdapterAvailable(): boolean {
+  return webgpuAdapterOk;
+}
+
 let detectorEP: DetectorEP | null = null;
 export async function resolveDetectorEP(): Promise<DetectorEP> {
   if (detectorEP) return detectorEP;
-  let ep: DetectorEP = "wasm";
-  try {
-    if (typeof navigator !== "undefined" && "gpu" in navigator && navigator.gpu) {
-      const adapter =
-        (await navigator.gpu.requestAdapter({ powerPreference: "high-performance" })) ??
-        (await navigator.gpu.requestAdapter());
-      if (adapter) ep = "webgpu";
-    }
-  } catch {
-    ep = "wasm";
-  }
-  detectorEP = ep;
-  return ep;
+  const device = await ensureWebGpuDevice();
+  detectorEP = device ? "webgpu" : "wasm";
+  return detectorEP;
 }
 
 export function executionProvidersFor(ep: DetectorEP): string[] {
@@ -63,6 +83,7 @@ export function executionProvidersFor(ep: DetectorEP): string[] {
 export const ORT_SESSION_OPTIONS = {
   graphOptimizationLevel: "all",
   enableCpuMemArena: true,
+  freeDimensionOverrides: { batch: 1 },
 } as const;
 
 export class YuNetOnnxDetector implements FaceDetector {

@@ -12,6 +12,7 @@ export interface RawFeatures {
   h264Main: boolean;
   h264Baseline: boolean;
   webgpu: boolean;
+  webgpuApiPresent: boolean;
   webgl2: boolean;
   offscreenCanvas: boolean;
   opfs: boolean;
@@ -27,6 +28,8 @@ export interface CapabilityReport {
   videoCodec: string | null;
   webcodecs: boolean;
   webgpu: boolean;
+  webgpuApiPresent: boolean;
+  webgpuBlocklisted: boolean;
   webgl2: boolean;
   offscreenCanvas: boolean;
   fileSystemAccess: boolean;

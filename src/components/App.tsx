@@ -13,6 +13,7 @@ import { Processing } from "@/components/screens/Processing";
 import { Preview } from "@/components/screens/Preview";
 import { EmptyPage } from "@/components/screens/EmptyPage";
 import { UnsupportedNotice } from "@/components/UnsupportedNotice";
+import { WebGpuHint } from "@/components/WebGpuHint";
 
 export default function App() {
   const { report, status, modelStatus, modelProgress, job, start, scan, blurSelected, cancel, reset } =
@@ -169,6 +170,9 @@ export default function App() {
       <Navbar tab={tab} onTab={setTab} dark={dark} onToggleTheme={() => setDark((d) => !d)} />
       <main className="sb-main">
         <div className="sb-stagewrap">
+          {tab === "home" && !booting && status === "ready" && report?.webgpuBlocklisted ? (
+            <WebGpuHint />
+          ) : null}
           <div className="sb-fade" key={viewKey}>
             {body}
           </div>

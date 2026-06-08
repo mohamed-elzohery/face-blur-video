@@ -11,8 +11,8 @@ import { logger } from "@/lib/log";
 import { createRenderer } from "./blur";
 import {
   YuNetOnnxDetector,
-  resolveDetectorEP,
   resolvedNumThreads,
+  webgpuAdapterAvailable,
   type FaceDetector,
 } from "./detector";
 import { YoloFaceOnnxDetector } from "./yolo-detector";
@@ -35,7 +35,6 @@ const TRACKER_MAX_MISSES = 1;
 const TRACKER_Q_POS = 6e-3;
 const TRACKER_Q_VEL = 8e-4;
 const TRACKER_MEAS_NOISE = 5e-4;
-const CPU_DETECT_LONG_SIDE = 480;
 
 export async function runPipeline(
   file: File,
@@ -54,9 +53,7 @@ export async function runPipeline(
     rendererOptionsFor(config),
   );
 
-  const detectorEP = await resolveDetectorEP();
-  const detectLongSide =
-    config.detectLongSide ?? (detectorEP === "webgpu" ? undefined : CPU_DETECT_LONG_SIDE);
+  const detectLongSide = config.detectLongSide;
 
   let detector: FaceDetector;
   try {
@@ -110,10 +107,18 @@ export async function runPipeline(
   let lastEmit = 0;
   let encodeMs = 0;
   let decodeMs = 0;
-  let lastWorkEnd = startedAt;
 
-  for await (const sample of sink.samples()) {
-    decodeMs += performance.now() - lastWorkEnd;
+  const iter = sink.samples()[Symbol.asyncIterator]();
+  let pending = iter.next();
+
+  for (;;) {
+    const decodeStart = performance.now();
+    const res = await pending;
+    decodeMs += performance.now() - decodeStart;
+    if (res.done) break;
+    const sample = res.value;
+    pending = iter.next();
+
     if (cancel.cancelled) {
       sample.close();
       break;
@@ -126,7 +131,6 @@ export async function runPipeline(
     const currentTimeUs = sample.microsecondTimestamp;
     sample.close();
     framesDone++;
-    lastWorkEnd = performance.now();
 
     if (!announced) {
       announced = true;
@@ -158,6 +162,15 @@ export async function runPipeline(
     }
   }
 
+  await pending
+    .then((r) => {
+      if (!r.done) r.value.close();
+    })
+    .catch(() => undefined);
+  if (typeof iter.return === "function") {
+    await iter.return().catch(() => undefined);
+  }
+
   if (!cancel.cancelled && audioInput) {
     await runAudio(audioPlan, audioInput, startOffsetSec, cancel, emit);
   }
@@ -178,7 +191,8 @@ export async function runPipeline(
   const hasGpu = typeof navigator !== "undefined" && "gpu" in navigator && !!navigator.gpu;
   const elapsed = (performance.now() - startedAt) / 1000;
   const summary =
-    `blur-all: detectorEP=${detector.ep} gpu=${hasGpu} blurBackend=${blurBackend} ` +
+    `blur-all: detectorEP=${detector.ep} gpu=${hasGpu} adapter=${webgpuAdapterAvailable() ? "ok" : "null"} ` +
+    `blurBackend=${blurBackend} ` +
     `engine=${config.engine} inputLong=${detectLongSide ?? "default"} frames=${framesDone} ` +
     `detects=${stats.detectCount} decodeMs=${Math.round(decodeMs)} detectMs=${Math.round(stats.detectMs)} ` +
     `renderMs=${Math.round(stats.renderMs)} encodeMs=${Math.round(encodeMs)} ` +

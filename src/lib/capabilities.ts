@@ -56,11 +56,15 @@ export async function probeFeatures(): Promise<RawFeatures> {
 
   const storage = typeof navigator !== "undefined" ? navigator.storage : undefined;
 
+  const webgpuApiPresent =
+    typeof navigator !== "undefined" && "gpu" in navigator && !!navigator.gpu;
+
   return {
     webcodecs,
     h264Main,
     h264Baseline,
     webgpu,
+    webgpuApiPresent,
     webgl2: probeWebGL2(),
     offscreenCanvas: typeof OffscreenCanvas !== "undefined",
     opfs: !!storage && typeof storage.getDirectory === "function",
@@ -114,6 +118,8 @@ export function decideCapabilities(f: RawFeatures): CapabilityReport {
     videoCodec,
     webcodecs: f.webcodecs,
     webgpu: f.webgpu,
+    webgpuApiPresent: f.webgpuApiPresent,
+    webgpuBlocklisted: f.webgpuApiPresent && !f.webgpu,
     webgl2: f.webgl2,
     offscreenCanvas: f.offscreenCanvas,
     fileSystemAccess: f.fileSystemAccess,
