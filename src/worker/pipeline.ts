@@ -190,11 +190,15 @@ export async function runPipeline(
   const isolated = typeof crossOriginIsolated !== "undefined" && crossOriginIsolated === true;
   const hasGpu = typeof navigator !== "undefined" && "gpu" in navigator && !!navigator.gpu;
   const elapsed = (performance.now() - startedAt) / 1000;
+  const dt = detector.timing?.();
+  const detectSplit = dt
+    ? ` detPrepMs=${Math.round(dt.prepMs)} detRunMs=${Math.round(dt.runMs)} detDecodeMs=${Math.round(dt.decodeMs)}`
+    : "";
   const summary =
     `blur-all: detectorEP=${detector.ep} gpu=${hasGpu} adapter=${webgpuAdapterAvailable() ? "ok" : "null"} ` +
     `blurBackend=${blurBackend} ` +
     `engine=${config.engine} inputLong=${detectLongSide ?? "default"} frames=${framesDone} ` +
-    `detects=${stats.detectCount} decodeMs=${Math.round(decodeMs)} detectMs=${Math.round(stats.detectMs)} ` +
+    `detects=${stats.detectCount} decodeMs=${Math.round(decodeMs)} detectMs=${Math.round(stats.detectMs)}${detectSplit} ` +
     `renderMs=${Math.round(stats.renderMs)} encodeMs=${Math.round(encodeMs)} ` +
     `fps=${(elapsed > 0 ? framesDone / elapsed : 0).toFixed(1)} ` +
     `numThreads=${resolvedNumThreads()} crossOriginIsolated=${isolated}`;

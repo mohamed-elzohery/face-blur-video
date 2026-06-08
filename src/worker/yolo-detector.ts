@@ -14,8 +14,10 @@ import {
   configureOrtEnv,
   executionProvidersFor,
   resolveDetectorEP,
+  type DetectorTiming,
   type FaceDetector,
 } from "./detector";
+import { logger } from "@/lib/log";
 import type { Emit } from "./runtime";
 
 const YOLO_INPUT_SIZE = 640;
@@ -44,8 +46,18 @@ async function createYoloSession(
     executionProviders: executionProvidersFor(ep),
     ...ORT_SESSION_OPTIONS,
   });
+  await warmupSession(session, YOLO_INPUT_SIZE);
   onPhase?.(3, total);
   return { session, ep };
+}
+
+async function warmupSession(session: ort.InferenceSession, size: number): Promise<void> {
+  try {
+    const warm = new ort.Tensor("float32", new Float32Array(3 * size * size), [1, 3, size, size]);
+    await session.run({ [session.inputNames[0]]: warm });
+  } catch (err) {
+    logger.warn(`YOLO warmup run failed: ${err instanceof Error ? err.message : err}`);
+  }
 }
 
 function ensureYoloSession(
@@ -87,6 +99,10 @@ export class YoloFaceOnnxDetector implements FaceDetector {
   private readonly inputSize: number;
   private readonly inputArea: number;
   private readonly inputName: string;
+  private prepMs = 0;
+  private runMs = 0;
+  private decodeMs = 0;
+  private runs = 0;
 
   static async create(
     encodeW: number,
@@ -123,6 +139,7 @@ export class YoloFaceOnnxDetector implements FaceDetector {
   async detect(sample: VideoSample, scoreThreshold: number): Promise<DetectedFace[]> {
     const { scaledW, scaledH, padX, padY } = this.layout;
     const size = this.inputSize;
+    const prepStart = performance.now();
     this.ctx.fillStyle = LETTERBOX_FILL;
     this.ctx.fillRect(0, 0, size, size);
     sample.draw(this.ctx, padX, padY, scaledW, scaledH);
@@ -135,7 +152,11 @@ export class YoloFaceOnnxDetector implements FaceDetector {
     }
 
     const tensor = new ort.Tensor("float32", this.input, [1, 3, size, size]);
+    const runStart = performance.now();
+    this.prepMs += runStart - prepStart;
     const result = await this.session.run({ [this.inputName]: tensor });
+    const decodeStart = performance.now();
+    this.runMs += decodeStart - runStart;
 
     const allDets = [];
     for (const name of this.session.outputNames) {
@@ -149,6 +170,8 @@ export class YoloFaceOnnxDetector implements FaceDetector {
     }
 
     const kept = nmsYolo(allDets, NMS_IOU);
+    this.decodeMs += performance.now() - decodeStart;
+    this.runs += 1;
     return kept.map((d) => ({
       ...letterboxBoxToNorm(d.x, d.y, d.w, d.h, this.layout, this.encodeW, this.encodeH),
       score: d.score,
@@ -159,6 +182,10 @@ export class YoloFaceOnnxDetector implements FaceDetector {
         vis: d.kps.map((kp) => kp.vis),
       },
     }));
+  }
+
+  timing(): DetectorTiming {
+    return { prepMs: this.prepMs, runMs: this.runMs, decodeMs: this.decodeMs, runs: this.runs };
   }
 
   dispose(): void {

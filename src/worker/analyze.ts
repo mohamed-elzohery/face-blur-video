@@ -215,8 +215,12 @@ export async function runAnalyze(
   src.input.dispose();
 
   const isolated = typeof crossOriginIsolated !== "undefined" && crossOriginIsolated === true;
+  const dt = detector.timing?.();
+  const detectSplit = dt
+    ? ` detPrepMs=${Math.round(dt.prepMs)} detRunMs=${Math.round(dt.runMs)} detDecodeMs=${Math.round(dt.decodeMs)}`
+    : "";
   const summary =
-    `analyze: frames=${frameIndex} detectMs=${Math.round(detectMs)} embedMs=${Math.round(embedMs)} ` +
+    `analyze: frames=${frameIndex} detectMs=${Math.round(detectMs)}${detectSplit} embedMs=${Math.round(embedMs)} ` +
     `embeds=${totalEmbeds} numThreads=${resolvedNumThreads()} crossOriginIsolated=${isolated}`;
   logger.info(summary);
   emit({ type: "log", level: "info", msg: summary });

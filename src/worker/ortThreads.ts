@@ -1,4 +1,4 @@
-export const THREAD_CAP = 8;
+export const THREAD_CAP = 4;
 
 export function pickNumThreads(
   crossOriginIsolated: boolean,

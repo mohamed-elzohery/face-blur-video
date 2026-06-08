@@ -7,9 +7,17 @@ import { loadYuNetModel } from "@/lib/modelStore";
 import { logger } from "@/lib/log";
 import { THREAD_CAP, pickNumThreads } from "./ortThreads";
 
+export interface DetectorTiming {
+  prepMs: number;
+  runMs: number;
+  decodeMs: number;
+  runs: number;
+}
+
 export interface FaceDetector {
   readonly ep: DetectorEP;
   detect(sample: VideoSample, scoreThreshold: number): Promise<DetectedFace[]>;
+  timing?(): DetectorTiming;
   dispose(): void;
 }
 

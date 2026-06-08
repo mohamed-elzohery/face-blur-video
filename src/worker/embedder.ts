@@ -1,6 +1,7 @@
 import * as ort from "onnxruntime-web/webgpu";
 import { loadSFaceModel } from "@/lib/modelStore";
 import { ALIGNED_SIZE } from "@/lib/model/face-align";
+import { logger } from "@/lib/log";
 import { ORT_SESSION_OPTIONS, configureOrtEnv } from "./detector";
 
 export interface FaceEmbedder {
@@ -23,6 +24,12 @@ export class SFaceOnnxEmbedder implements FaceEmbedder {
       executionProviders: ["wasm"],
       ...ORT_SESSION_OPTIONS,
     });
+    try {
+      const warm = new ort.Tensor("float32", new Float32Array(3 * PLANE), [1, 3, ALIGNED_SIZE, ALIGNED_SIZE]);
+      await session.run({ [session.inputNames[0]]: warm });
+    } catch (err) {
+      logger.warn(`SFace warmup run failed: ${err instanceof Error ? err.message : err}`);
+    }
     return new SFaceOnnxEmbedder(session);
   }
 
