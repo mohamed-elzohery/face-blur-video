@@ -1438,6 +1438,17 @@ a {
   background: color-mix(in oklch, var(--primary) 6%, var(--card));
   box-shadow: var(--shadow-md);
 }
+.af-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.af-option:disabled:hover {
+  border-color: var(--border);
+  box-shadow: none;
+}
+.af-option:disabled:active {
+  transform: none;
+}
 .af-option__icon {
   display: inline-flex;
   align-items: center;

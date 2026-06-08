@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Film, ScanFace, Shield, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, ArrowRight, Clock, Film, ScanFace, Shield, SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { OptionCard } from "@/components/ui/OptionCard";
@@ -66,13 +66,13 @@ export function ChooseMode({
             icon={<ScanFace size={22} />}
             title="Select faces before blur"
             badge={
-              <Badge variant="outline" style={{ marginLeft: 8 }}>
-                Slower
+              <Badge variant="outline" icon={<Clock size={12} />} style={{ marginLeft: 8 }}>
+                Coming soon
               </Badge>
             }
             description="Full pipeline — recognizes each face so you choose exactly who to hide."
-            selected={mode === "select"}
-            onClick={() => setMode("select")}
+            selected={false}
+            disabled
           />
         </div>
         <div className="sb-choose__controls">
