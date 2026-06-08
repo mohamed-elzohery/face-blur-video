@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePipeline } from "@/hooks/usePipeline";
-import { DEFAULT_JOB_CONFIG, type JobConfig } from "@/lib/types";
+import { DEFAULT_JOB_CONFIG, type BlurStyle, type JobConfig } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { Navbar, type Tab } from "@/components/screens/Navbar";
 import { ModelLoading } from "@/components/screens/ModelLoading";
@@ -42,6 +42,7 @@ export default function App() {
   };
 
   const setDensity = (v: number) => setConfig((c) => ({ ...c, density: v }));
+  const setStyle = (v: BlurStyle) => setConfig((c) => ({ ...c, style: v }));
   const setKeepAudio = (v: boolean) => setConfig((c) => ({ ...c, keepAudio: v }));
 
   const onPick = (f: File) => {
@@ -55,7 +56,8 @@ export default function App() {
     setOriginal(null);
   };
 
-  const booting = status === "probing" || (status === "ready" && modelStatus !== "ready");
+  const checkingSupport = status === "probing";
+  const modelLoading = status === "ready" && modelStatus !== "ready";
 
   let body: React.ReactNode;
 
@@ -68,8 +70,8 @@ export default function App() {
     );
   } else if (status === "unsupported" && report) {
     body = <UnsupportedNotice report={report} />;
-  } else if (booting) {
-    body = <ModelLoading progress={modelProgress} checking={status === "probing"} />;
+  } else if (checkingSupport) {
+    body = <ModelLoading progress={modelProgress} checking />;
   } else if (tab !== "home") {
     body = <EmptyPage which={tab} onHome={() => setTab("home")} />;
   } else if (job.status === "cancelled") {
@@ -108,13 +110,15 @@ export default function App() {
     );
   } else if (!file || job.status === "idle") {
     body = !file ? (
-      <Uploader onFile={onPick} />
+      <Uploader onFile={onPick} onSeeExamples={() => setTab("examples")} />
     ) : (
       <ChooseMode
         file={file}
         originalUrl={originalUrl ?? ""}
         density={config.density}
         setDensity={setDensity}
+        style={config.style}
+        setStyle={setStyle}
         keepAudio={config.keepAudio}
         setKeepAudio={setKeepAudio}
         onBack={onReset}
@@ -122,6 +126,8 @@ export default function App() {
         onSelect={() => scan(file, config)}
       />
     );
+  } else if (modelLoading) {
+    body = <ModelLoading progress={modelProgress} />;
   } else if (job.status === "scanning") {
     body = <Processing mode="scanning" progress={job.scanProgress} onCancel={cancel} />;
   } else if (job.status === "selecting" && file) {
@@ -137,19 +143,7 @@ export default function App() {
       />
     );
   } else if (job.status === "processing") {
-    body = (
-      <Processing
-        mode="blurring"
-        progress={job.progress}
-        framesDone={job.framesDone}
-        fps={job.throughputFps}
-        detectorEP={job.detectorEP}
-        numThreads={job.numThreads}
-        crossOriginIsolated={job.crossOriginIsolated}
-        lastLog={job.lastLog}
-        onCancel={cancel}
-      />
-    );
+    body = <Processing mode="blurring" progress={job.progress} onCancel={cancel} />;
   } else if (job.status === "done" && job.result && originalUrl && report) {
     body = (
       <Preview
@@ -163,14 +157,14 @@ export default function App() {
     );
   }
 
-  const viewKey = `${tab}:${file ? "f" : "n"}:${booting ? "boot" : job.status}`;
+  const viewKey = `${tab}:${file ? "f" : "n"}:${checkingSupport ? "boot" : modelLoading && job.status !== "idle" ? "model" : job.status}`;
 
   return (
     <div className="sb-app">
       <Navbar tab={tab} onTab={setTab} dark={dark} onToggleTheme={() => setDark((d) => !d)} />
       <main className="sb-main">
         <div className="sb-stagewrap">
-          {tab === "home" && !booting && status === "ready" && report?.webgpuBlocklisted ? (
+          {tab === "home" && !checkingSupport && status === "ready" && report?.webgpuBlocklisted ? (
             <WebGpuHint />
           ) : null}
           <div className="sb-fade" key={viewKey}>

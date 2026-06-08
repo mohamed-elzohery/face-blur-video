@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Check, CheckCircle2, Download, RotateCcw } from "lucide-react";
+import { Check, CheckCircle2, Download, RotateCcw, ShieldCheck } from "lucide-react";
 import { saveBlob } from "@/lib/fileTarget";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -53,10 +53,10 @@ export function Preview({
   return (
     <div className="sb-preview">
       <div className="sb-preview__head">
+        <h2>Your video is anonymized</h2>
         <Badge variant="success" icon={<Check size={12} />}>
           Done
         </Badge>
-        <h2>Your video is anonymized</h2>
       </div>
 
       <div className="sb-stage">
@@ -101,35 +101,42 @@ export function Preview({
         </button>
       </div>
 
-      <div className="sb-preview__grid">
-        <div className="sb-preview__meta">
-          <div className="item">
-            <span className="k">Output</span>
-            <span className="v">MP4</span>
-          </div>
-          <div className="item">
-            <span className="k">Size</span>
-            <span className="v">{formatMB(blob.size)} MB</span>
-          </div>
-          <div className="item">
-            <span className="k">Processed</span>
-            <span className="v">On-device</span>
-          </div>
+      <div className="sb-preview__meta">
+        <div className="item">
+          <span className="k">Output</span>
+          <span className="v">MP4</span>
         </div>
-        <div className="sb-preview__actions">
-          <Button
-            variant="primary"
-            size="lg"
-            iconLeft={<Download size={18} />}
-            onClick={() => void exportVideo()}
-          >
-            {fileSystemAccess ? "Export video" : "Download video"}
-          </Button>
-          <Button variant="outline" iconLeft={<RotateCcw size={16} />} onClick={onRestart}>
-            Upload a new video
-          </Button>
+        <div className="item">
+          <span className="k">Size</span>
+          <span className="v">{formatMB(blob.size)} MB</span>
+        </div>
+        <div className="item">
+          <span className="k">Quality</span>
+          <span className="v">Original</span>
+        </div>
+        <div className="item">
+          <span className="k">Processed</span>
+          <span className="v">On-device</span>
         </div>
       </div>
+
+      <div className="sb-preview__actions">
+        <Button
+          variant="primary"
+          size="lg"
+          iconLeft={<Download size={18} />}
+          onClick={() => void exportVideo()}
+        >
+          {fileSystemAccess ? "Export video" : "Download video"}
+        </Button>
+        <Button variant="outline" size="lg" iconLeft={<RotateCcw size={16} />} onClick={onRestart}>
+          Upload a new video
+        </Button>
+      </div>
+
+      <p className="sb-preview__assurance">
+        <ShieldCheck size={14} /> Original quality · No frames dropped · No quality loss
+      </p>
 
       <div className="sb-toast" data-show={toast ? "true" : "false"}>
         <CheckCircle2 size={16} /> Saved to your device

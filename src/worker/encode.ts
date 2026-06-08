@@ -9,21 +9,19 @@ import {
   type InputAudioTrack,
 } from "mediabunny";
 import { STYLE_CODE, type BlurBackend, type JobConfig } from "@/lib/types";
+import { MIN_BLOCK_PX, blockFracForDensity } from "@/lib/blurMath";
 import type { RendererOptions } from "./blur";
 import type { Cancel, Emit } from "./runtime";
 
+export { MIN_BLOCK_PX, MIN_BLOCK_FRAC, MAX_BLOCK_FRAC } from "@/lib/blurMath";
+
 export const FEATHER_PX = 2.5;
-export const MIN_BLOCK_PX = 6;
-export const MIN_BLOCK_FRAC = 0.07;
-export const MAX_BLOCK_FRAC = 0.22;
 export const PROGRESS_INTERVAL_MS = 150;
 
 export function rendererOptionsFor(config: JobConfig): RendererOptions {
-  const density = Math.min(1, Math.max(0, config.density));
-  const blockFrac = MIN_BLOCK_FRAC + density * (MAX_BLOCK_FRAC - MIN_BLOCK_FRAC);
   return {
     minBlockPx: MIN_BLOCK_PX,
-    blockFrac,
+    blockFrac: blockFracForDensity(config.density),
     featherPx: FEATHER_PX,
     style: STYLE_CODE[config.style],
   };

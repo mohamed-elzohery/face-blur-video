@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { ArrowLeft, ArrowRight, Clock, Film, ScanFace, Shield, SlidersHorizontal } from "lucide-react";
+import type { BlurStyle } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { BlurPreview } from "@/components/ui/BlurPreview";
 import { OptionCard } from "@/components/ui/OptionCard";
 import { Slider } from "@/components/ui/Slider";
 import { Switch } from "@/components/ui/Switch";
@@ -13,11 +15,18 @@ function formatMB(bytes: number): string {
   return (bytes / 1_000_000).toFixed(1);
 }
 
+const EFFECTS: { id: BlurStyle; label: string; desc: string; img: string }[] = [
+  { id: "mosaic", label: "Pixelated", desc: "Blocky mosaic over faces", img: "/styles/pixelated.png" },
+  { id: "gaussian", label: "Gaussian", desc: "Soft, smooth blur", img: "/styles/gaussian.png" },
+];
+
 export function ChooseMode({
   file,
   originalUrl,
   density,
   setDensity,
+  style,
+  setStyle,
   keepAudio,
   setKeepAudio,
   onBack,
@@ -28,6 +37,8 @@ export function ChooseMode({
   originalUrl: string;
   density: number;
   setDensity: (v: number) => void;
+  style: BlurStyle;
+  setStyle: (v: BlurStyle) => void;
   keepAudio: boolean;
   setKeepAudio: (v: boolean) => void;
   onBack: () => void;
@@ -80,16 +91,38 @@ export function ChooseMode({
             <SlidersHorizontal size={15} />
             Blur controls
           </div>
-          <Slider
-            label="Mask density"
-            min={20}
-            max={100}
-            step={10}
-            value={Math.round(density * 100)}
-            onChange={(v) => setDensity(v / 100)}
-            ticks={["Light", "Medium", "Dense"]}
-            formatValue={(v) => `${v}%`}
-          />
+          <div className="sb-fx" role="radiogroup" aria-label="Blur effect">
+            {EFFECTS.map((fx) => (
+              <button
+                key={fx.id}
+                type="button"
+                className="sb-fx__tile"
+                data-on={style === fx.id ? "true" : "false"}
+                role="radio"
+                aria-checked={style === fx.id}
+                onClick={() => setStyle(fx.id)}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img className="sb-fx__img" src={fx.img} alt="" loading="lazy" />
+                <span className="sb-fx__label">{fx.label}</span>
+                <span className="sb-fx__desc">{fx.desc}</span>
+              </button>
+            ))}
+          </div>
+          <div className="sb-density">
+            <BlurPreview style={style} density={density} className="sb-density__sample" />
+            <Slider
+              className="sb-density__slider"
+              label="Mask density"
+              min={20}
+              max={100}
+              step={10}
+              value={Math.round(density * 100)}
+              onChange={(v) => setDensity(v / 100)}
+              ticks={["Light", "Medium", "Dense"]}
+              formatValue={(v) => `${v}%`}
+            />
+          </div>
           <div className="sb-choose__row">
             <span className="lab">
               <b>Keep audio</b>

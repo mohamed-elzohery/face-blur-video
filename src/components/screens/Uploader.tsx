@@ -1,11 +1,17 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { FolderOpen, Lock, ShieldCheck, UploadCloud } from "lucide-react";
+import { FileVideoCamera, FolderOpen, Lock, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 
-export function Uploader({ onFile }: { onFile: (file: File) => void }) {
+export function Uploader({
+  onFile,
+  onSeeExamples,
+}: {
+  onFile: (file: File) => void;
+  onSeeExamples: () => void;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
 
@@ -21,13 +27,15 @@ export function Uploader({ onFile }: { onFile: (file: File) => void }) {
       <div>
         <span className="sb-upload__eyebrow">
           <Lock size={14} />
-          Private by default
+          Your video never leaves your device
         </span>
         <h1 className="sb-upload__title">Blur faces in any video</h1>
       </div>
       <p className="sb-upload__sub">
-        Drop a clip in and SmartBlur detects and hides every face — processed entirely on your
-        device. No frame drops, no quality loss, even in fast-moving, crowded footage.
+        SmartBlur detects and blurs faces in your video — even in crowded, fast-moving footage.{" "}
+        <button type="button" className="sb-upload__link" onClick={onSeeExamples}>
+          See examples
+        </button>
       </p>
       <div
         className="sb-drop"
@@ -60,7 +68,7 @@ export function Uploader({ onFile }: { onFile: (file: File) => void }) {
           onChange={(e) => pick(e.target.files)}
         />
         <span className="sb-drop__icon">
-          <UploadCloud size={30} />
+          <FileVideoCamera size={30} />
         </span>
         <div className="sb-drop__big">Drag &amp; drop your video</div>
         <div className="sb-drop__hint">MP4, MOV or WebM · any length</div>
@@ -81,8 +89,9 @@ export function Uploader({ onFile }: { onFile: (file: File) => void }) {
         </Badge>
         <Badge variant="outline">No sign-up</Badge>
         <Badge variant="outline">No credits</Badge>
-        <Badge variant="outline">Free forever</Badge>
+        <Badge variant="outline">Free</Badge>
         <Badge variant="outline">No time limit</Badge>
+        <Badge variant="outline">No editing skills required</Badge>
       </div>
       <div className="sb-upload__features">
         <span>Nothing uploaded</span>
