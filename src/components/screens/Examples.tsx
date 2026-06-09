@@ -1,0 +1,96 @@
+"use client";
+
+import { ArrowRight, Baby, Lock, Users, Zap } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { BeforeAfter } from "@/components/screens/BeforeAfter";
+import { useInViewport } from "@/hooks/useInViewport";
+
+type Case = {
+  id: string;
+  icon: typeof Zap;
+  eyebrow: string;
+  title: string;
+  body: string;
+  base: string;
+};
+
+const CASES: Case[] = [
+  {
+    id: "fast-moving",
+    icon: Zap,
+    eyebrow: "Frame-by-frame tracking",
+    title: "Keeps up with fast motion",
+    body: "Skaters, runners, motion blur — SmartBlur locks onto every face frame by frame, even when they move faster than the shutter.",
+    base: "/examples/fast-moving",
+  },
+  {
+    id: "multi-face",
+    icon: Users,
+    eyebrow: "Every face, not just the front row",
+    title: "Finds every face in the crowd",
+    body: "Group shots, busy streets, packed rooms — each face is detected and blurred independently, so no one slips through.",
+    base: "/examples/multi-face",
+  },
+  {
+    id: "children",
+    icon: Baby,
+    eyebrow: "Private by default",
+    title: "Keep family footage private",
+    body: "Two kids playing together. Share the moment, not their faces — blurring runs entirely on your device, so the original never leaves it.",
+    base: "/examples/children",
+  },
+];
+
+function CaseSection({ data }: { data: Case }) {
+  const { ref, inView } = useInViewport<HTMLElement>({ threshold: 0.15, once: true });
+  const Icon = data.icon;
+  return (
+    <section className="sb-ex__case" ref={ref} data-inview={inView ? "true" : "false"}>
+      <div className="sb-ex__case-head">
+        <span className="sb-ex__case-icon">
+          <Icon size={22} />
+        </span>
+        <span className="sb-ex__case-eyebrow">{data.eyebrow}</span>
+        <h2>{data.title}</h2>
+        <p>{data.body}</p>
+      </div>
+      <BeforeAfter
+        label={data.title}
+        before={`${data.base}-before.mp4`}
+        after={`${data.base}-after.mp4`}
+        beforePoster={`${data.base}-before.jpg`}
+        afterPoster={`${data.base}-after.jpg`}
+      />
+    </section>
+  );
+}
+
+export function Examples({ onHome }: { onHome: () => void }) {
+  return (
+    <div className="sb-ex">
+      <header className="sb-ex__hero">
+        <span className="sb-upload__eyebrow">
+          <Lock size={14} />
+          Real footage · blurred on-device
+        </span>
+        <h1 className="sb-ex__title">See SmartBlur in action</h1>
+        <p className="sb-upload__sub">
+          Three real clips, each shown before and after. Same footage, same moment — only the faces
+          change.
+        </p>
+      </header>
+
+      {CASES.map((c) => (
+        <CaseSection key={c.id} data={c} />
+      ))}
+
+      <section className="sb-ex-cta">
+        <h2>Your turn</h2>
+        <p>Drop in a video and watch the faces disappear — nothing ever leaves your device.</p>
+        <Button variant="primary" size="lg" iconRight={<ArrowRight size={18} />} onClick={onHome}>
+          Blur your own video
+        </Button>
+      </section>
+    </div>
+  );
+}

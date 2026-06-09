@@ -11,6 +11,7 @@ import { ChooseMode } from "@/components/screens/ChooseMode";
 import { SelectFaces } from "@/components/screens/SelectFaces";
 import { Processing } from "@/components/screens/Processing";
 import { Preview } from "@/components/screens/Preview";
+import { Examples } from "@/components/screens/Examples";
 import { EmptyPage } from "@/components/screens/EmptyPage";
 import { UnsupportedNotice } from "@/components/UnsupportedNotice";
 import { WebGpuHint } from "@/components/WebGpuHint";
@@ -56,8 +57,8 @@ export default function App() {
     setOriginal(null);
   };
 
-  const checkingSupport = status === "probing";
-  const modelLoading = status === "ready" && modelStatus !== "ready";
+  const modelLoading = status !== "unsupported" && status !== "error" && modelStatus !== "ready";
+  const showingModel = !!file && job.status !== "idle" && modelLoading;
 
   let body: React.ReactNode;
 
@@ -70,8 +71,8 @@ export default function App() {
     );
   } else if (status === "unsupported" && report) {
     body = <UnsupportedNotice report={report} />;
-  } else if (checkingSupport) {
-    body = <ModelLoading progress={modelProgress} checking />;
+  } else if (tab === "examples") {
+    body = <Examples onHome={() => setTab("home")} />;
   } else if (tab !== "home") {
     body = <EmptyPage which={tab} onHome={() => setTab("home")} />;
   } else if (job.status === "cancelled") {
@@ -127,7 +128,7 @@ export default function App() {
       />
     );
   } else if (modelLoading) {
-    body = <ModelLoading progress={modelProgress} />;
+    body = <ModelLoading progress={modelProgress} checking={status === "probing"} />;
   } else if (job.status === "scanning") {
     body = <Processing mode="scanning" progress={job.scanProgress} onCancel={cancel} />;
   } else if (job.status === "selecting" && file) {
@@ -157,14 +158,14 @@ export default function App() {
     );
   }
 
-  const viewKey = `${tab}:${file ? "f" : "n"}:${checkingSupport ? "boot" : modelLoading && job.status !== "idle" ? "model" : job.status}`;
+  const viewKey = `${tab}:${file ? "f" : "n"}:${showingModel ? "model" : job.status}`;
 
   return (
     <div className="sb-app">
       <Navbar tab={tab} onTab={setTab} dark={dark} onToggleTheme={() => setDark((d) => !d)} />
       <main className="sb-main">
         <div className="sb-stagewrap">
-          {tab === "home" && !checkingSupport && status === "ready" && report?.webgpuBlocklisted ? (
+          {tab === "home" && status === "ready" && report?.webgpuBlocklisted ? (
             <WebGpuHint />
           ) : null}
           <div className="sb-fade" key={viewKey}>

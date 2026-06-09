@@ -8,7 +8,7 @@ export type Tab = "home" | "examples" | "features" | "support";
 
 const NAV: { id: Tab; label: string; icon: typeof Shield; soon?: boolean }[] = [
   { id: "home", label: "Blur videos", icon: Shield },
-  { id: "examples", label: "Examples", icon: Clapperboard, soon: true },
+  { id: "examples", label: "Examples", icon: Clapperboard },
   { id: "features", label: "Features", icon: Sparkles, soon: true },
   { id: "support", label: "Support", icon: LifeBuoy, soon: true },
 ];

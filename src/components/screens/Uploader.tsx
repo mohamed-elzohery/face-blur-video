@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import { FileVideoCamera, FolderOpen, Lock, ShieldCheck } from "lucide-react";
-import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 
@@ -34,9 +33,9 @@ export function Uploader({
       </div>
       <p className="sb-upload__sub" about="">
         SmartBlur detects and blurs faces in your video — even in crowded, fast-moving footage.{" "}
-        <Link href="/examples" prefetch={false} type="button" className="sb-upload__link" onClick={onSeeExamples}>
+        <button type="button" className="sb-upload__link" onClick={onSeeExamples}>
           See examples
-        </Link>
+        </button>
       </p>
       <div
         className="sb-drop"
