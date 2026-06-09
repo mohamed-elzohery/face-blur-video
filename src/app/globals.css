@@ -192,9 +192,10 @@ a {
 .sb-main {
   flex: 1;
   display: flex;
-  align-items: center;
+  /* align-items: center; */
+  margin-top: var(--space-6);
   justify-content: center;
-  padding: var(--space-10) var(--space-6) var(--space-12);
+  padding: var(--space-12) var(--space-6) var(--space-12);
 }
 .sb-stagewrap {
   width: 100%;
@@ -621,20 +622,33 @@ a {
   flex-wrap: wrap;
   justify-content: center;
 }
-.sb-upload__features {
+.sb-upload__examples {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  border: 1px solid color-mix(in oklch, var(--primary) 28%, transparent);
+  background: color-mix(in oklch, var(--primary) 6%, transparent);
   font: var(--text-label);
-  color: var(--muted-foreground);
+  font-weight: var(--weight-semibold);
+  color: var(--primary);
+  text-decoration: none;
+  transition: background var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
 }
-.sb-upload__features .dot {
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: var(--border);
+.sb-upload__examples:hover {
+  background: color-mix(in oklch, var(--primary) 12%, transparent);
+  border-color: color-mix(in oklch, var(--primary) 45%, transparent);
+}
+.sb-upload__examples:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-shadow);
+}
+.sb-upload__examples svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
 }
 
 /* ---- Choose mode ---- */
@@ -1096,19 +1110,16 @@ a {
 .sb-main:has(.sb-ex) {
   align-items: flex-start;
 }
-.sb-ex__hero {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: var(--space-4);
-  max-width: 640px;
-  margin: 0 auto;
-}
-.sb-ex__title {
-  font: var(--text-display);
-  letter-spacing: var(--tracking-tighter);
-  margin: var(--space-1) 0 0;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 .sb-ex__case {
   display: flex;
@@ -1229,9 +1240,6 @@ a {
   .sb-ex-pair {
     grid-template-columns: 1fr;
   }
-  .sb-ex__title {
-    font: var(--text-title);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1297,6 +1305,7 @@ a {
   border: 1px solid transparent;
   cursor: pointer;
   white-space: nowrap;
+  text-decoration: none;
   user-select: none;
   touch-action: manipulation;
   transition: background var(--duration-fast) var(--ease-standard),

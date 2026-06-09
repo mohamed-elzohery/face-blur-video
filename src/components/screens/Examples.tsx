@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowRight, Baby, Lock, Users, Zap } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import Link from "next/link";
+import { ArrowRight, Baby, Users, Zap } from "lucide-react";
 import { BeforeAfter } from "@/components/screens/BeforeAfter";
 import { useInViewport } from "@/hooks/useInViewport";
 
@@ -65,20 +65,10 @@ function CaseSection({ data }: { data: Case }) {
   );
 }
 
-export function Examples({ onHome }: { onHome: () => void }) {
+export function Examples() {
   return (
     <div className="sb-ex">
-      <header className="sb-ex__hero">
-        <span className="sb-upload__eyebrow">
-          <Lock size={14} />
-          Real footage · blurred on-device
-        </span>
-        <h1 className="sb-ex__title">See SmartBlur in action</h1>
-        <p className="sb-upload__sub">
-          Three real clips, each shown before and after. Same footage, same moment — only the faces
-          change.
-        </p>
-      </header>
+      <h1 className="sr-only">SmartBlur face blur examples — before and after</h1>
 
       {CASES.map((c) => (
         <CaseSection key={c.id} data={c} />
@@ -87,9 +77,12 @@ export function Examples({ onHome }: { onHome: () => void }) {
       <section className="sb-ex-cta">
         <h2>Your turn</h2>
         <p>Drop in a video and watch the faces disappear — nothing ever leaves your device.</p>
-        <Button variant="primary" size="lg" iconRight={<ArrowRight size={18} />} onClick={onHome}>
-          Blur your own video
-        </Button>
+        <Link className="af-btn af-btn--primary af-btn--lg" href="/">
+          <span>Blur your own video</span>
+          <span className="af-btn__icon" aria-hidden="true">
+            <ArrowRight size={18} />
+          </span>
+        </Link>
       </section>
     </div>
   );

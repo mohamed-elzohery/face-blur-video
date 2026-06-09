@@ -1,17 +1,12 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { FileVideoCamera, FolderOpen, Lock, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { Clapperboard, FileVideoCamera, FolderOpen, Lock, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 
-export function Uploader({
-  onFile,
-  onSeeExamples,
-}: {
-  onFile: (file: File) => void;
-  onSeeExamples: () => void;
-}) {
+export function Uploader({ onFile }: { onFile: (file: File) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
 
@@ -31,12 +26,13 @@ export function Uploader({
         </span>
         <h1 className="sb-upload__title">Blur faces in any video</h1>
       </div>
-      <p className="sb-upload__sub" about="">
-        SmartBlur detects and blurs faces in your video — even in crowded, fast-moving footage.{" "}
-        <button type="button" className="sb-upload__link" onClick={onSeeExamples}>
-          See examples
-        </button>
+      <p className="sb-upload__sub">
+        SmartBlur detects and blurs faces in your video — even in crowded, fast-moving footage.
       </p>
+      <Link href="/examples" className="sb-upload__examples">
+        <Clapperboard size={16} />
+        <span>See examples</span>
+      </Link>
       <div
         className="sb-drop"
         data-drag={drag ? "true" : "false"}
@@ -89,18 +85,10 @@ export function Uploader({
         </Badge>
         <Badge variant="outline">No sign-up</Badge>
         <Badge variant="outline">No credits</Badge>
+        <Badge variant="outline">No watermark</Badge>
         <Badge variant="outline">Free</Badge>
         <Badge variant="outline">No time limit</Badge>
         <Badge variant="outline">No editing skills required</Badge>
-      </div>
-      <div className="sb-upload__features">
-        <span>Nothing uploaded</span>
-        <span className="dot" />
-        <span>Multi-face</span>
-        <span className="dot" />
-        <span>Handles fast motion</span>
-        <span className="dot" />
-        <span>Full quality out</span>
       </div>
     </div>
   );

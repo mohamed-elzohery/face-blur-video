@@ -4,15 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { usePipeline } from "@/hooks/usePipeline";
 import { DEFAULT_JOB_CONFIG, type BlurStyle, type JobConfig } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
-import { Navbar, type Tab } from "@/components/screens/Navbar";
 import { ModelLoading } from "@/components/screens/ModelLoading";
 import { Uploader } from "@/components/screens/Uploader";
 import { ChooseMode } from "@/components/screens/ChooseMode";
 import { SelectFaces } from "@/components/screens/SelectFaces";
 import { Processing } from "@/components/screens/Processing";
 import { Preview } from "@/components/screens/Preview";
-import { Examples } from "@/components/screens/Examples";
-import { EmptyPage } from "@/components/screens/EmptyPage";
 import { UnsupportedNotice } from "@/components/UnsupportedNotice";
 import { WebGpuHint } from "@/components/WebGpuHint";
 
@@ -21,14 +18,8 @@ export default function App() {
     usePipeline();
   const [file, setFile] = useState<File | null>(null);
   const [config, setConfig] = useState<JobConfig>(DEFAULT_JOB_CONFIG);
-  const [tab, setTab] = useState<Tab>("home");
-  const [dark, setDark] = useState(false);
   const originalUrlRef = useRef<string | null>(null);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-  }, [dark]);
 
   useEffect(() => {
     return () => {
@@ -71,10 +62,6 @@ export default function App() {
     );
   } else if (status === "unsupported" && report) {
     body = <UnsupportedNotice report={report} />;
-  } else if (tab === "examples") {
-    body = <Examples onHome={() => setTab("home")} />;
-  } else if (tab !== "home") {
-    body = <EmptyPage which={tab} onHome={() => setTab("home")} />;
   } else if (job.status === "cancelled") {
     body = (
       <div className="sb-empty">
@@ -111,7 +98,7 @@ export default function App() {
     );
   } else if (!file || job.status === "idle") {
     body = !file ? (
-      <Uploader onFile={onPick} onSeeExamples={() => setTab("examples")} />
+      <Uploader onFile={onPick} />
     ) : (
       <ChooseMode
         file={file}
@@ -158,24 +145,16 @@ export default function App() {
     );
   }
 
-  const viewKey = `${tab}:${file ? "f" : "n"}:${showingModel ? "model" : job.status}`;
+  const viewKey = `${file ? "f" : "n"}:${showingModel ? "model" : job.status}`;
 
   return (
-    <div className="sb-app">
-      <Navbar tab={tab} onTab={setTab} dark={dark} onToggleTheme={() => setDark((d) => !d)} />
-      <main className="sb-main">
-        <div className="sb-stagewrap">
-          {tab === "home" && status === "ready" && report?.webgpuBlocklisted ? (
-            <WebGpuHint />
-          ) : null}
-          <div className="sb-fade" key={viewKey}>
-            {body}
-          </div>
+    <main className="sb-main">
+      <div className="sb-stagewrap">
+        {status === "ready" && report?.webgpuBlocklisted ? <WebGpuHint /> : null}
+        <div className="sb-fade" key={viewKey}>
+          {body}
         </div>
-      </main>
-      <footer className="sb-foot">
-        SmartBlur — local, private video anonymization · GDPR compliant · No sign-up
-      </footer>
-    </div>
+      </div>
+    </main>
   );
 }

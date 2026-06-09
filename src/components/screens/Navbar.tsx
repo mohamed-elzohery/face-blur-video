@@ -1,49 +1,38 @@
 "use client";
 
-import { Clapperboard, LifeBuoy, Lock, Moon, Shield, Sparkles, Sun } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Clapperboard, Lock, Moon, Shield, Sun } from "lucide-react";
 import { Brand } from "@/components/ui/Brand";
 import { IconButton } from "@/components/ui/IconButton";
 
-export type Tab = "home" | "examples" | "features" | "support";
-
-const NAV: { id: Tab; label: string; icon: typeof Shield; soon?: boolean }[] = [
-  { id: "home", label: "Blur videos", icon: Shield },
-  { id: "examples", label: "Examples", icon: Clapperboard },
-  { id: "features", label: "Features", icon: Sparkles, soon: true },
-  { id: "support", label: "Support", icon: LifeBuoy, soon: true },
+const NAV: { href: string; label: string; icon: typeof Shield }[] = [
+  { href: "/", label: "Blur videos", icon: Shield },
+  { href: "/examples", label: "Examples", icon: Clapperboard },
 ];
 
-export function Navbar({
-  tab,
-  onTab,
-  dark,
-  onToggleTheme,
-}: {
-  tab: Tab;
-  onTab: (tab: Tab) => void;
-  dark: boolean;
-  onToggleTheme: () => void;
-}) {
+export function Navbar({ dark, onToggleTheme }: { dark: boolean; onToggleTheme: () => void }) {
+  const pathname = usePathname();
   return (
     <header className="sb-nav">
-      <button className="sb-nav__brand" onClick={() => onTab("home")} aria-label="SmartBlur home">
+      <Link className="sb-nav__brand" href="/" aria-label="SmartBlur home">
         <Brand />
-      </button>
+      </Link>
       <nav className="sb-nav__links" aria-label="Primary">
         {NAV.map((n) => {
           const Icon = n.icon;
+          const active = n.href === "/" ? pathname === "/" : pathname.startsWith(n.href);
           return (
-            <button
-              key={n.id}
+            <Link
+              key={n.href}
+              href={n.href}
               className="sb-nav__link"
-              data-active={tab === n.id ? "true" : "false"}
-              aria-current={tab === n.id ? "page" : undefined}
-              onClick={() => onTab(n.id)}
+              data-active={active ? "true" : "false"}
+              aria-current={active ? "page" : undefined}
             >
               <Icon size={16} />
               <span>{n.label}</span>
-              {n.soon ? <span className="sb-nav__soon">Soon</span> : null}
-            </button>
+            </Link>
           );
         })}
       </nav>
