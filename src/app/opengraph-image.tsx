@@ -45,9 +45,21 @@ export default function OpengraphImage() {
           SmartBlur
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ fontSize: 92, lineHeight: 1.04, letterSpacing: -2, maxWidth: 980 }}>
-            Blur faces in any video — free
+        <div style={{ display: "flex", flexDirection: "column", maxWidth: 1000 }}>
+          <div style={{ fontSize: 84, lineHeight: 1.06, letterSpacing: -2 }}>
+            Blur faces in any video,
+          </div>
+          <div
+            style={{
+              fontSize: 84,
+              lineHeight: 1.06,
+              letterSpacing: -2,
+              textDecoration: "underline",
+              textDecorationThickness: 7,
+              textUnderlineOffset: 12,
+            }}
+          >
+            for free
           </div>
           <div style={{ fontSize: 40, marginTop: 30, opacity: 0.92 }}>
             100% private · In your browser · No upload · No watermark

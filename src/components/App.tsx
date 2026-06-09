@@ -12,6 +12,7 @@ import { Processing } from "@/components/screens/Processing";
 import { Preview } from "@/components/screens/Preview";
 import { UnsupportedNotice } from "@/components/UnsupportedNotice";
 import { WebGpuHint } from "@/components/WebGpuHint";
+import { setStage } from "@/lib/stageStore";
 
 export default function App() {
   const { report, status, modelStatus, modelProgress, job, start, scan, blurSelected, cancel, reset } =
@@ -26,6 +27,12 @@ export default function App() {
       if (originalUrlRef.current) URL.revokeObjectURL(originalUrlRef.current);
     };
   }, []);
+
+  const landing = !file && status !== "unsupported" && status !== "error";
+  useEffect(() => {
+    setStage(landing ? "landing" : "active");
+    return () => setStage("landing");
+  }, [landing]);
 
   const setOriginal = (f: File | null) => {
     if (originalUrlRef.current) URL.revokeObjectURL(originalUrlRef.current);

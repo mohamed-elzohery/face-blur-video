@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { AppClient } from "@/components/AppClient";
+import { HomeMain } from "@/components/home/HomeMain";
 import { HomeHero } from "@/components/home/HomeHero";
+import { HomeTrust } from "@/components/home/HomeTrust";
 import { HomeContent } from "@/components/home/HomeContent";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { FAQ } from "@/lib/faq";
@@ -46,13 +48,14 @@ const faqLd = {
 
 export default function Page() {
   return (
-    <main className="sb-home">
+    <HomeMain>
       <HomeHero />
       <div className="sb-home__stage">
         <AppClient />
       </div>
+      <HomeTrust />
       <HomeContent />
       <JsonLd data={[webAppLd, faqLd]} />
-    </main>
+    </HomeMain>
   );
 }

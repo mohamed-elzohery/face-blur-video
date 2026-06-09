@@ -1,6 +1,18 @@
+"use client";
+
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/Accordion";
 import { FAQ } from "@/lib/faq";
+import { useStage } from "@/lib/stageStore";
 
 export function HomeContent() {
+  const stage = useStage();
+  if (stage === "active") return null;
+
   return (
     <section className="sb-seo" aria-label="About SmartBlur">
       <div className="sb-seo__block">
@@ -48,14 +60,18 @@ export function HomeContent() {
 
       <div className="sb-seo__block">
         <h2>Frequently asked questions</h2>
-        <div className="sb-faq">
-          {FAQ.map((item) => (
-            <div className="sb-faq__item" key={item.q}>
-              <h3 className="sb-faq__q">{item.q}</h3>
-              <p className="sb-faq__a">{item.a}</p>
-            </div>
+        <Accordion type="single" collapsible className="sb-acc">
+          {FAQ.map((item, i) => (
+            <AccordionItem key={item.q} value={`faq-${i}`}>
+              <AccordionTrigger>
+                <span className="sb-acc__q">{item.q}</span>
+              </AccordionTrigger>
+              <AccordionContent>
+                <p className="sb-acc__a">{item.a}</p>
+              </AccordionContent>
+            </AccordionItem>
           ))}
-        </div>
+        </Accordion>
       </div>
     </section>
   );

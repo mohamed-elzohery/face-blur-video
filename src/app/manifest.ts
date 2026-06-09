@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: SITE_NAME,
     short_name: SITE_NAME,
-    description: "Blur faces in any video — free, automatic, processed entirely in your browser.",
+    description: "Free, automatic, in-browser face blur, no upload, no sign-up, no watermark.",
     start_url: "/",
     display: "standalone",
     background_color: "#ffffff",
