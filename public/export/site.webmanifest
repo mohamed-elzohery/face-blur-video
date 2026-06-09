@@ -1,0 +1,13 @@
+{
+  "name": "SmartBlur",
+  "short_name": "SmartBlur",
+  "description": "Blur faces in any video — processed entirely on your device.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#a800b7",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
