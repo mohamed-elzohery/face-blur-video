@@ -49,14 +49,21 @@ describe("rendererOptionsFor density mapping", () => {
 });
 
 describe("resolveVideoBitrate", () => {
-  it("prefers the metadata average bitrate", async () => {
-    const bitrate = await resolveVideoBitrate(fakeTrack(1_500_000, 4_000_000), 5_000_000, 30);
+  it("prefers the metadata average bitrate when consistent with the file", async () => {
+    const bitrate = await resolveVideoBitrate(fakeTrack(1_500_000, 4_000_000), 10_000_000, 30);
     expect(bitrate).toBe(1_500_000);
   });
 
   it("falls back to the peak bitrate when average is missing", async () => {
-    const bitrate = await resolveVideoBitrate(fakeTrack(null, 2_200_000), 5_000_000, 30);
+    const bitrate = await resolveVideoBitrate(fakeTrack(null, 2_200_000), 10_000_000, 30);
     expect(bitrate).toBe(2_200_000);
+  });
+
+  it("caps a bogus-high metadata bitrate at the actual container bitrate", async () => {
+    const fileSize = 5_000_000;
+    const durationSec = 30;
+    const bitrate = await resolveVideoBitrate(fakeTrack(10_000_000, 12_000_000), fileSize, durationSec);
+    expect(bitrate).toBe(Math.round((fileSize * 8) / durationSec));
   });
 
   it("estimates from container size when no metadata bitrate exists", async () => {
@@ -64,12 +71,14 @@ describe("resolveVideoBitrate", () => {
     expect(bitrate).toBe(Math.round(((5_000_000 * 8) / 30) * 0.92));
   });
 
-  it("never targets more than the source for a typical clip", async () => {
+  it("never targets more than the source overall bitrate", async () => {
     const fileSize = 5_000_000;
     const durationSec = 30;
     const sourceBitrate = (fileSize * 8) / durationSec;
-    const bitrate = await resolveVideoBitrate(fakeTrack(null, null), fileSize, durationSec);
-    expect(bitrate as number).toBeLessThanOrEqual(sourceBitrate);
+    for (const track of [fakeTrack(null, null), fakeTrack(9_000_000, null), fakeTrack(null, 9_000_000)]) {
+      const bitrate = await resolveVideoBitrate(track, fileSize, durationSec);
+      expect(bitrate as number).toBeLessThanOrEqual(sourceBitrate);
+    }
   });
 
   it("returns QUALITY_MEDIUM when bitrate is unmeasurable", async () => {

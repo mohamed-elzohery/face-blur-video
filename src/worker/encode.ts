@@ -36,14 +36,17 @@ export async function resolveVideoBitrate(
   fileSize: number,
   durationSec: number,
 ): Promise<number | Quality> {
+  const containerBitrate =
+    durationSec > 0 && fileSize > 0 && Number.isFinite(fileSize) ? (fileSize * 8) / durationSec : null;
+
   const metaBitrate = (await videoTrack.getAverageBitrate()) ?? (await videoTrack.getBitrate());
   if (typeof metaBitrate === "number" && Number.isFinite(metaBitrate) && metaBitrate > 0) {
-    return Math.round(metaBitrate);
+    const capped = containerBitrate ? Math.min(metaBitrate, containerBitrate) : metaBitrate;
+    return Math.round(capped);
   }
-  if (durationSec > 0 && fileSize > 0) {
-    const estimate = ((fileSize * 8) / durationSec) * SOURCE_BITRATE_SHARE;
-    if (Number.isFinite(estimate) && estimate > 0) return Math.round(estimate);
-  }
+
+  if (containerBitrate) return Math.round(containerBitrate * SOURCE_BITRATE_SHARE);
+
   return QUALITY_MEDIUM;
 }
 
