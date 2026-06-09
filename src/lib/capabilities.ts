@@ -3,8 +3,13 @@ import {
   H264_MAIN,
   type CapabilityReport,
   type CapabilityTier,
+  type DetectorEngine,
   type RawFeatures,
 } from "./types";
+
+export function engineForReport(report: CapabilityReport): DetectorEngine {
+  return report.webgpu ? "yolo" : "yunet";
+}
 
 async function isVideoEncodeSupported(codec: string): Promise<boolean> {
   try {

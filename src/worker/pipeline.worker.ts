@@ -3,6 +3,7 @@ import type { MainToWorker, WorkerToMain } from "@/lib/types";
 import { PipelineError } from "./errors";
 import { runPipeline } from "./pipeline";
 import { preloadYoloSession } from "./yolo-detector";
+import { preloadYuNetSession } from "./detector";
 import { runAnalyze } from "./analyze";
 import { runRenderFromPlan } from "./renderFromPlan";
 import { sameSource, sourceIdentity, type AnalyzedPlan } from "./renderPlan";
@@ -43,7 +44,11 @@ ctx.onmessage = async (e: MessageEvent<MainToWorker>) => {
     }
     case "preload": {
       try {
-        await preloadYoloSession((m, t) => post(m, t));
+        if (msg.engine === "yunet") {
+          await preloadYuNetSession((m, t) => post(m, t));
+        } else {
+          await preloadYoloSession((m, t) => post(m, t));
+        }
       } catch (err) {
         post({
           type: "log",

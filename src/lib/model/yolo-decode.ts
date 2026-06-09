@@ -1,9 +1,9 @@
 import type { ScoredBox } from "@/lib/types";
 import { iou } from "@/lib/coords";
+import { isPlausibleFaceGeometry } from "./face-geometry";
 
 const REG_MAX = 16;
 const NUM_KPS = 5;
-const VIS_THRESH = 0.3;
 
 export interface YoloKeypoint {
   x: number;
@@ -32,39 +32,6 @@ function dflChannel(data: Float32Array, startCh: number, idx: number, area: numb
     ws += e * i;
   }
   return ws / s;
-}
-
-function validateLandmarks(det: YoloDetection): boolean {
-  const { x, y, w, h, kps } = det;
-  const visible = kps.filter((kp) => kp.vis >= VIS_THRESH);
-  if (visible.length < 2) return true;
-
-  const margin = 0.3;
-  const x1e = x - w * margin;
-  const y1e = y - h * margin;
-  const x2e = x + w + w * margin;
-  const y2e = y + h + h * margin;
-  for (const kp of visible) {
-    if (kp.x < x1e || kp.x > x2e || kp.y < y1e || kp.y > y2e) return false;
-  }
-
-  const [le, re, nose, lm, rm] = kps;
-  const eyeVis = (le.vis >= VIS_THRESH ? 1 : 0) + (re.vis >= VIS_THRESH ? 1 : 0);
-  const noseVis = nose.vis >= VIS_THRESH;
-  const mouthVis = (lm.vis >= VIS_THRESH ? 1 : 0) + (rm.vis >= VIS_THRESH ? 1 : 0);
-  const tol = h * 0.2;
-
-  if (eyeVis >= 1 && noseVis) {
-    const eyeY = eyeVis === 2 ? (le.y + re.y) / 2 : le.vis >= VIS_THRESH ? le.y : re.y;
-    if (nose.y < eyeY - tol) return false;
-  }
-
-  if (noseVis && mouthVis >= 1) {
-    const mouthY = lm.vis >= VIS_THRESH ? lm.y : rm.y;
-    if (mouthY < nose.y - tol) return false;
-  }
-
-  return true;
 }
 
 export function decodeYoloOutput(
@@ -131,5 +98,5 @@ export function nmsYolo(dets: YoloDetection[], iouThreshold: number, maxOut = 64
     }
     if (!overlaps) kept.push(cand);
   }
-  return kept.filter(validateLandmarks);
+  return kept.filter((d) => isPlausibleFaceGeometry(d, d.kps));
 }

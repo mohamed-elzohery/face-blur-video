@@ -47,6 +47,16 @@ export function detBoxToNormalized(
   };
 }
 
+export function detPointToNormalized(
+  x: number,
+  y: number,
+  layout: DetectLayout,
+  encodeW: number,
+  encodeH: number,
+): [number, number] {
+  return [x / layout.scale / encodeW, y / layout.scale / encodeH];
+}
+
 export function padBox(box: Box, frac: number): Box {
   const padX = box.w * frac;
   const padY = box.h * frac;

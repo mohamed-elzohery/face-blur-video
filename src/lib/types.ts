@@ -94,7 +94,7 @@ export const DEFAULT_JOB_CONFIG: JobConfig = {
 
 export type MainToWorker =
   | { type: "probe" }
-  | { type: "preload" }
+  | { type: "preload"; engine?: DetectorEngine }
   | { type: "start"; file: File; config: JobConfig }
   | { type: "scan"; file: File; config: JobConfig }
   | { type: "blurSelected"; file: File; config: JobConfig; keepIds: number[] }

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePipeline } from "@/hooks/usePipeline";
 import { DEFAULT_JOB_CONFIG, type BlurStyle, type JobConfig } from "@/lib/types";
+import { engineForReport } from "@/lib/capabilities";
 import { Button } from "@/components/ui/Button";
 import { ModelLoading } from "@/components/screens/ModelLoading";
 import { Uploader } from "@/components/screens/Uploader";
@@ -12,6 +13,7 @@ import { Processing } from "@/components/screens/Processing";
 import { Preview } from "@/components/screens/Preview";
 import { UnsupportedNotice } from "@/components/UnsupportedNotice";
 import { WebGpuHint } from "@/components/WebGpuHint";
+import { CpuHint } from "@/components/CpuHint";
 import { setStage } from "@/lib/stageStore";
 
 export default function App() {
@@ -34,6 +36,11 @@ export default function App() {
     return () => setStage("landing");
   }, [landing]);
 
+  const isCoarsePointer =
+    typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches;
+  const showCpuHint =
+    status === "ready" && !!report && !report.webgpu && !report.webgpuBlocklisted && isCoarsePointer;
+
   const setOriginal = (f: File | null) => {
     if (originalUrlRef.current) URL.revokeObjectURL(originalUrlRef.current);
     originalUrlRef.current = f ? URL.createObjectURL(f) : null;
@@ -43,6 +50,11 @@ export default function App() {
   const setDensity = (v: number) => setConfig((c) => ({ ...c, density: v }));
   const setStyle = (v: BlurStyle) => setConfig((c) => ({ ...c, style: v }));
   const setKeepAudio = (v: boolean) => setConfig((c) => ({ ...c, keepAudio: v }));
+
+  const effectiveConfig = useMemo<JobConfig>(
+    () => (report?.supported ? { ...config, engine: engineForReport(report) } : config),
+    [config, report],
+  );
 
   const onPick = (f: File) => {
     reset();
@@ -117,8 +129,8 @@ export default function App() {
         keepAudio={config.keepAudio}
         setKeepAudio={setKeepAudio}
         onBack={onReset}
-        onBlurAll={() => start(file, config)}
-        onSelect={() => scan(file, config)}
+        onBlurAll={() => start(file, effectiveConfig)}
+        onSelect={() => scan(file, effectiveConfig)}
       />
     );
   } else if (modelLoading) {
@@ -134,7 +146,7 @@ export default function App() {
         density={config.density}
         setDensity={setDensity}
         onBack={reset}
-        onConfirm={(keepIds) => blurSelected(file, keepIds, config)}
+        onConfirm={(keepIds) => blurSelected(file, keepIds, effectiveConfig)}
       />
     );
   } else if (job.status === "processing") {
@@ -157,6 +169,7 @@ export default function App() {
   return (
     <div className="sb-stagewrap">
       {status === "ready" && report?.webgpuBlocklisted ? <WebGpuHint /> : null}
+      {showCpuHint ? <CpuHint /> : null}
       <div className="sb-fade" key={viewKey}>
         {body}
       </div>

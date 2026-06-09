@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { decideCapabilities, detectMainFeatures } from "@/lib/capabilities";
+import { decideCapabilities, detectMainFeatures, engineForReport } from "@/lib/capabilities";
 import {
   DEFAULT_JOB_CONFIG,
   type BlurBackend,
@@ -113,7 +113,9 @@ export function usePipeline(): UsePipeline {
           if (decided.supported) {
             setModelStatus("loading");
             setModelProgress(0);
-            worker.postMessage({ type: "preload" } satisfies MainToWorker);
+            worker.postMessage(
+              { type: "preload", engine: engineForReport(decided) } satisfies MainToWorker,
+            );
           }
           break;
         }
@@ -260,5 +262,16 @@ export function usePipeline(): UsePipeline {
     setJob(INITIAL_JOB);
   }, [closeThumbs]);
 
-  return { report, status, modelStatus, modelProgress, job, start, scan, blurSelected, cancel, reset };
+  return {
+    report,
+    status,
+    modelStatus,
+    modelProgress,
+    job,
+    start,
+    scan,
+    blurSelected,
+    cancel,
+    reset,
+  };
 }
