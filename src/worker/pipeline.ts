@@ -3,7 +3,6 @@ import {
   CanvasSource,
   Mp4OutputFormat,
   Output,
-  QUALITY_HIGH,
   VideoSampleSink,
 } from "mediabunny";
 import type { JobConfig } from "@/lib/types";
@@ -23,7 +22,9 @@ import { KalmanTracker } from "./tracker";
 import {
   PROGRESS_INTERVAL_MS,
   detectBlurBackend,
+  formatBitrate,
   rendererOptionsFor,
+  resolveVideoBitrate,
   runAudio,
   setupAudio,
 } from "./encode";
@@ -85,10 +86,12 @@ export async function runPipeline(
   const target = new BufferTarget();
   const output = new Output({ format, target });
 
+  const videoBitrate = await resolveVideoBitrate(videoTrack, file.size, durationUs / 1_000_000);
+
   const codecHolder = { codec: "avc1" };
   const videoSource = new CanvasSource(renderer.canvas, {
     codec: "avc",
-    bitrate: QUALITY_HIGH,
+    bitrate: videoBitrate,
     onEncoderConfig: (cfg) => {
       codecHolder.codec = cfg.codec;
     },
@@ -200,6 +203,7 @@ export async function runPipeline(
     `engine=${config.engine} inputLong=${detectLongSide ?? "default"} frames=${framesDone} ` +
     `detects=${stats.detectCount} decodeMs=${Math.round(decodeMs)} detectMs=${Math.round(stats.detectMs)}${detectSplit} ` +
     `renderMs=${Math.round(stats.renderMs)} encodeMs=${Math.round(encodeMs)} ` +
+    `targetBitrate=${formatBitrate(videoBitrate)} ` +
     `fps=${(elapsed > 0 ? framesDone / elapsed : 0).toFixed(1)} ` +
     `numThreads=${resolvedNumThreads()} crossOriginIsolated=${isolated}`;
   logger.info(summary);

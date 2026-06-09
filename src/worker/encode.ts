@@ -7,6 +7,8 @@ import {
   Output,
   QUALITY_MEDIUM,
   type InputAudioTrack,
+  type InputVideoTrack,
+  type Quality,
 } from "mediabunny";
 import { STYLE_CODE, type BlurBackend, type JobConfig } from "@/lib/types";
 import { MIN_BLOCK_PX, blockFracForDensity } from "@/lib/blurMath";
@@ -25,6 +27,28 @@ export function rendererOptionsFor(config: JobConfig): RendererOptions {
     featherPx: FEATHER_PX,
     style: STYLE_CODE[config.style],
   };
+}
+
+const SOURCE_BITRATE_SHARE = 0.92;
+
+export async function resolveVideoBitrate(
+  videoTrack: InputVideoTrack,
+  fileSize: number,
+  durationSec: number,
+): Promise<number | Quality> {
+  const metaBitrate = (await videoTrack.getAverageBitrate()) ?? (await videoTrack.getBitrate());
+  if (typeof metaBitrate === "number" && Number.isFinite(metaBitrate) && metaBitrate > 0) {
+    return Math.round(metaBitrate);
+  }
+  if (durationSec > 0 && fileSize > 0) {
+    const estimate = ((fileSize * 8) / durationSec) * SOURCE_BITRATE_SHARE;
+    if (Number.isFinite(estimate) && estimate > 0) return Math.round(estimate);
+  }
+  return QUALITY_MEDIUM;
+}
+
+export function formatBitrate(bitrate: number | Quality): string {
+  return typeof bitrate === "number" ? `${Math.round(bitrate / 1000)}kbps` : "quality-medium";
 }
 
 export async function detectBlurBackend(): Promise<BlurBackend> {

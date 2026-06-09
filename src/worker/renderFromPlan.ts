@@ -3,7 +3,6 @@ import {
   CanvasSource,
   Mp4OutputFormat,
   Output,
-  QUALITY_HIGH,
   VideoSampleSink,
 } from "mediabunny";
 import type { JobConfig } from "@/lib/types";
@@ -14,7 +13,9 @@ import { makeOutputName, openSource } from "./io/source";
 import {
   PROGRESS_INTERVAL_MS,
   detectBlurBackend,
+  formatBitrate,
   rendererOptionsFor,
+  resolveVideoBitrate,
   runAudio,
   setupAudio,
 } from "./encode";
@@ -45,10 +46,13 @@ export async function runRenderFromPlan(
   const target = new BufferTarget();
   const output = new Output({ format, target });
 
+  const videoBitrate = await resolveVideoBitrate(videoTrack, file.size, durationUs / 1_000_000);
+  emit({ type: "log", level: "info", msg: `blur-selected: targetBitrate=${formatBitrate(videoBitrate)}` });
+
   const codecHolder = { codec: "avc1" };
   const videoSource = new CanvasSource(renderer.canvas, {
     codec: "avc",
-    bitrate: QUALITY_HIGH,
+    bitrate: videoBitrate,
     onEncoderConfig: (cfg) => {
       codecHolder.codec = cfg.codec;
     },
