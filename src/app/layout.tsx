@@ -1,39 +1,63 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { Shell } from "@/components/Shell";
+import { JsonLd } from "@/components/seo/JsonLd";
+import {
+  BRAND_MAGENTA,
+  DEFAULT_DESCRIPTION,
+  DEFAULT_TITLE,
+  KEYWORDS,
+  SITE_NAME,
+  SITE_URL,
+  absoluteUrl,
+} from "@/lib/seo";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains" });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://smartblur.com"),
-  title: "SmartBlur — private, on-device video face blurring",
-  description:
-    "Blur faces in any video 100% on your device. Nothing is uploaded, no sign-up, no credits, no time limit. GDPR compliant and free.",
-  applicationName: "SmartBlur",
-  keywords: [
-    "blur faces",
-    "video anonymization",
-    "privacy",
-    "on-device",
-    "GDPR",
-    "face blur",
-  ],
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: DEFAULT_TITLE,
+    template: "%s | SmartBlur",
+  },
+  description: DEFAULT_DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: KEYWORDS,
   openGraph: {
-    title: "SmartBlur — private, on-device video face blurring",
-    description:
-      "Blur faces in any video 100% on your device. Nothing is uploaded. GDPR compliant and free.",
-    url: "https://smartblur.com",
-    siteName: "SmartBlur",
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
+    url: SITE_URL,
+    siteName: SITE_NAME,
     type: "website",
+    locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
-    title: "SmartBlur — private, on-device video face blurring",
-    description: "Blur faces in any video 100% on your device. Nothing is uploaded.",
+    title: DEFAULT_TITLE,
+    description: DEFAULT_DESCRIPTION,
   },
   robots: { index: true, follow: true },
+};
+
+export const viewport: Viewport = {
+  themeColor: BRAND_MAGENTA,
+};
+
+const organizationLd = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: SITE_NAME,
+  url: SITE_URL,
+  logo: absoluteUrl("/logo-mark-512.png"),
+};
+
+const websiteLd = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: SITE_NAME,
+  url: SITE_URL,
 };
 
 export default function RootLayout({
@@ -45,6 +69,7 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <body>
         <Shell>{children}</Shell>
+        <JsonLd data={[organizationLd, websiteLd]} />
       </body>
     </html>
   );

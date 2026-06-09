@@ -148,13 +148,11 @@ export default function App() {
   const viewKey = `${file ? "f" : "n"}:${showingModel ? "model" : job.status}`;
 
   return (
-    <main className="sb-main">
-      <div className="sb-stagewrap">
-        {status === "ready" && report?.webgpuBlocklisted ? <WebGpuHint /> : null}
-        <div className="sb-fade" key={viewKey}>
-          {body}
-        </div>
+    <div className="sb-stagewrap">
+      {status === "ready" && report?.webgpuBlocklisted ? <WebGpuHint /> : null}
+      <div className="sb-fade" key={viewKey}>
+        {body}
       </div>
-    </main>
+    </div>
   );
 }

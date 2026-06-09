@@ -1,9 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Link from "next/link";
-import { Clapperboard, FileVideoCamera, FolderOpen, Lock, ShieldCheck } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
+import { FileVideoCamera, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
 export function Uploader({ onFile }: { onFile: (file: File) => void }) {
@@ -19,20 +17,6 @@ export function Uploader({ onFile }: { onFile: (file: File) => void }) {
 
   return (
     <div className="sb-upload">
-      <div>
-        <span className="sb-upload__eyebrow">
-          <Lock size={14} />
-          Your video never leaves your device
-        </span>
-        <h1 className="sb-upload__title">Blur faces in any video</h1>
-      </div>
-      <p className="sb-upload__sub">
-        SmartBlur detects and blurs faces in your video — even in crowded, fast-moving footage.
-      </p>
-      <Link href="/examples" className="sb-upload__examples">
-        <Clapperboard size={16} />
-        <span>See examples</span>
-      </Link>
       <div
         className="sb-drop"
         data-drag={drag ? "true" : "false"}
@@ -66,8 +50,8 @@ export function Uploader({ onFile }: { onFile: (file: File) => void }) {
         <span className="sb-drop__icon">
           <FileVideoCamera size={30} />
         </span>
-        <div className="sb-drop__big">Drag &amp; drop your video</div>
-        <div className="sb-drop__hint">MP4, MOV or WebM · any length</div>
+        <div className="sb-drop__big">Drag &amp; drop your video to blur faces</div>
+        <div className="sb-drop__hint">MP4, MOV or WebM · any length · free, no upload</div>
         <Button
           variant="primary"
           iconLeft={<FolderOpen size={16} />}
@@ -78,17 +62,6 @@ export function Uploader({ onFile }: { onFile: (file: File) => void }) {
         >
           Choose file
         </Button>
-      </div>
-      <div className="sb-upload__trust">
-        <Badge variant="success" icon={<ShieldCheck size={12} />}>
-          GDPR compliant
-        </Badge>
-        <Badge variant="outline">No sign-up</Badge>
-        <Badge variant="outline">No credits</Badge>
-        <Badge variant="outline">No watermark</Badge>
-        <Badge variant="outline">Free</Badge>
-        <Badge variant="outline">No time limit</Badge>
-        <Badge variant="outline">No editing skills required</Badge>
       </div>
     </div>
   );
