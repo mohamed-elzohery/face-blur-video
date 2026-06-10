@@ -15,24 +15,36 @@ function formatEta(ms: number): string {
 
 function useEtaCountdown(progress: number): string | null {
   const startRef = useRef<number | null>(null);
+  const progressRef = useRef(0);
+  const rateRef = useRef<number | null>(null);
+  const lastRef = useRef<{ t: number; p: number } | null>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
 
   useEffect(() => {
-    startRef.current = performance.now();
-  }, []);
-
-  useEffect(() => {
-    const start = startRef.current;
-    if (start === null) return;
-    const elapsed = performance.now() - start;
-    if (progress > 0.03 && elapsed > 2500) {
-      setRemaining(Math.max(0, elapsed / progress - elapsed));
-    }
+    progressRef.current = progress;
   }, [progress]);
 
   useEffect(() => {
+    startRef.current = performance.now();
     const id = window.setInterval(() => {
-      setRemaining((prev) => (prev === null ? null : Math.max(0, prev - 1000)));
+      const now = performance.now();
+      const p = progressRef.current;
+      const last = lastRef.current;
+      if (last && now > last.t && p > last.p) {
+        const inst = (p - last.p) / (now - last.t);
+        rateRef.current = rateRef.current === null ? inst : rateRef.current * 0.8 + inst * 0.2;
+      }
+      lastRef.current = { t: now, p };
+      const elapsed = now - (startRef.current ?? now);
+      const rate = rateRef.current;
+      if (p <= 0.03 || elapsed < 2500 || !rate || rate <= 0) return;
+      const target = Math.max(0, (1 - p) / rate);
+      setRemaining((prev) => {
+        if (prev === null) return target;
+        const ticked = Math.max(0, prev - 1000);
+        const drift = Math.max(5000, ticked * 0.25);
+        return Math.abs(target - ticked) > drift ? target : ticked;
+      });
     }, 1000);
     return () => window.clearInterval(id);
   }, []);
