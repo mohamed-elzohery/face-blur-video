@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { Check, CheckCircle2, Download, RotateCcw, ShieldCheck } from "lucide-react";
 import { saveBlob } from "@/lib/fileTarget";
+import { sizeBucket, track } from "@/lib/analytics";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 
@@ -45,6 +46,10 @@ export function Preview({
   const exportVideo = async () => {
     const ok = await saveBlob(blob, fileName);
     if (ok) {
+      track("result_downloaded", {
+        output_size_bucket: sizeBucket(blob.size),
+        mime: blob.type || "video/mp4",
+      });
       setToast(true);
       setTimeout(() => setToast(false), 2600);
     }

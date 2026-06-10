@@ -16,11 +16,14 @@ import { UnsupportedNotice } from "@/components/UnsupportedNotice";
 import { WebGpuHint } from "@/components/WebGpuHint";
 import { CpuHint } from "@/components/CpuHint";
 import { setStage } from "@/lib/stageStore";
+import { sizeBucket, track } from "@/lib/analytics";
+import { useSessionAnalytics } from "@/hooks/useSessionAnalytics";
 
 export default function App() {
   const { report, status, modelStatus, modelProgress, job, start, scan, blurSelected, cancel, reset } =
     usePipeline();
   useWakeLock(job.status === "scanning" || job.status === "processing");
+  useSessionAnalytics(report, status);
   const [file, setFile] = useState<File | null>(null);
   const [config, setConfig] = useState<JobConfig>(DEFAULT_JOB_CONFIG);
   const originalUrlRef = useRef<string | null>(null);
@@ -62,8 +65,10 @@ export default function App() {
     reset();
     setFile(f);
     setOriginal(f);
+    track("file_selected", { size_bucket: sizeBucket(f.size), format: f.type || "unknown" });
   };
   const onReset = () => {
+    track("new_video", { from: job.status === "idle" ? "options" : job.status });
     reset();
     setFile(null);
     setOriginal(null);

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { decideCapabilities, detectMainFeatures, engineForReport } from "@/lib/capabilities";
+import { durationBucket, sizeBucket, track } from "@/lib/analytics";
 import {
   DEFAULT_JOB_CONFIG,
   type BlurBackend,
@@ -12,6 +13,36 @@ import {
   type MainToWorker,
   type WorkerToMain,
 } from "@/lib/types";
+
+function configParams(config: JobConfig) {
+  return {
+    style: config.style,
+    density: config.density,
+    density_changed: config.density !== DEFAULT_JOB_CONFIG.density,
+    keep_audio: config.keepAudio,
+    engine: config.engine,
+  };
+}
+
+interface JobTelemetry {
+  detectorEP: DetectorEP | null;
+  backend: BlurBackend | null;
+  numThreads: number | null;
+  frames: number;
+  fps: number;
+  progress: number;
+  scanProgress: number;
+}
+
+const INITIAL_TELEMETRY: JobTelemetry = {
+  detectorEP: null,
+  backend: null,
+  numThreads: null,
+  frames: 0,
+  fps: 0,
+  progress: 0,
+  scanProgress: 0,
+};
 
 export type PipelineStatus = "probing" | "ready" | "unsupported" | "error";
 export type ModelStatus = "loading" | "ready" | "error";
@@ -85,6 +116,10 @@ export function usePipeline(): UsePipeline {
   const durationUsRef = useRef(0);
   const resultUrlRef = useRef<string | null>(null);
   const thumbsRef = useRef<ImageBitmap[]>([]);
+  const jobStartRef = useRef(0);
+  const jobModeRef = useRef<"blur_all" | "select">("blur_all");
+  const stageRef = useRef<"scanning" | "processing">("processing");
+  const teleRef = useRef<JobTelemetry>({ ...INITIAL_TELEMETRY });
 
   const [report, setReport] = useState<CapabilityReport | null>(null);
   const [status, setStatus] = useState<PipelineStatus>("probing");
@@ -130,10 +165,13 @@ export function usePipeline(): UsePipeline {
         }
         case "scanStarted": {
           durationUsRef.current = msg.durationUs;
+          stageRef.current = "scanning";
+          teleRef.current.detectorEP = msg.detectorEP;
           setJob((j) => ({ ...j, status: "scanning", scanProgress: 0 }));
           break;
         }
         case "scanProgress": {
+          teleRef.current.scanProgress = msg.progress;
           setJob((j) => ({ ...j, status: "scanning", scanProgress: msg.progress }));
           break;
         }
@@ -151,6 +189,10 @@ export function usePipeline(): UsePipeline {
         }
         case "started": {
           durationUsRef.current = msg.durationUs;
+          stageRef.current = "processing";
+          teleRef.current.detectorEP = msg.detectorEP;
+          teleRef.current.backend = msg.blurBackend;
+          teleRef.current.numThreads = msg.numThreads;
           setJob((j) => ({
             ...j,
             status: "processing",
@@ -165,6 +207,9 @@ export function usePipeline(): UsePipeline {
         case "progress": {
           const dur = durationUsRef.current;
           const progress = dur > 0 ? Math.min(1, msg.currentTimeUs / dur) : 0;
+          teleRef.current.frames = msg.framesDone;
+          teleRef.current.fps = msg.throughputFps;
+          teleRef.current.progress = progress;
           setJob((j) => ({
             ...j,
             status: "processing",
@@ -178,6 +223,20 @@ export function usePipeline(): UsePipeline {
           if (resultUrlRef.current) URL.revokeObjectURL(resultUrlRef.current);
           const url = URL.createObjectURL(msg.output);
           resultUrlRef.current = url;
+          const processingMs = Math.round(performance.now() - jobStartRef.current);
+          const durSec = durationUsRef.current / 1_000_000;
+          track("process_completed", {
+            mode: jobModeRef.current,
+            frames: teleRef.current.frames,
+            throughput_fps: Math.round(teleRef.current.fps * 10) / 10,
+            detector_ep: teleRef.current.detectorEP ?? "unknown",
+            backend: teleRef.current.backend ?? "unknown",
+            num_threads: teleRef.current.numThreads ?? 0,
+            processing_ms: processingMs,
+            realtime_factor:
+              durSec > 0 ? Math.round((processingMs / (durSec * 1000)) * 100) / 100 : 0,
+            duration_bucket: durSec > 0 ? durationBucket(durSec) : "unknown",
+          });
           setJob((j) => ({
             ...j,
             status: "done",
@@ -187,6 +246,24 @@ export function usePipeline(): UsePipeline {
           break;
         }
         case "error": {
+          if (msg.code === "cancelled") {
+            const ratio =
+              stageRef.current === "scanning"
+                ? teleRef.current.scanProgress
+                : teleRef.current.progress;
+            track("process_cancelled", {
+              stage: stageRef.current,
+              progress_pct: Math.round(ratio * 100),
+            });
+          } else {
+            track("process_error", {
+              code: msg.code,
+              message: msg.message.slice(0, 120),
+              stage: stageRef.current,
+              detector_ep: teleRef.current.detectorEP ?? "unknown",
+              backend: teleRef.current.backend ?? "unknown",
+            });
+          }
           setJob((j) => ({
             ...j,
             status: msg.code === "cancelled" ? "cancelled" : "error",
@@ -223,6 +300,15 @@ export function usePipeline(): UsePipeline {
     }
     closeThumbs();
     durationUsRef.current = 0;
+    jobModeRef.current = "blur_all";
+    jobStartRef.current = performance.now();
+    stageRef.current = "processing";
+    teleRef.current = { ...INITIAL_TELEMETRY };
+    track("process_started", {
+      mode: "blur_all",
+      size_bucket: sizeBucket(file.size),
+      ...configParams(config),
+    });
     setJob({ ...INITIAL_JOB, status: "processing" });
     workerRef.current?.postMessage({ type: "start", file, config } satisfies MainToWorker);
   }, [closeThumbs]);
@@ -234,6 +320,16 @@ export function usePipeline(): UsePipeline {
     }
     closeThumbs();
     durationUsRef.current = 0;
+    jobModeRef.current = "select";
+    jobStartRef.current = performance.now();
+    stageRef.current = "scanning";
+    teleRef.current = { ...INITIAL_TELEMETRY };
+    track("process_started", {
+      mode: "select",
+      phase: "scan",
+      size_bucket: sizeBucket(file.size),
+      ...configParams(config),
+    });
     setJob({ ...INITIAL_JOB, status: "scanning" });
     workerRef.current?.postMessage({ type: "scan", file, config } satisfies MainToWorker);
   }, [closeThumbs]);
@@ -241,6 +337,9 @@ export function usePipeline(): UsePipeline {
   const blurSelected = useCallback(
     (file: File, keepIds: number[], config: JobConfig = DEFAULT_JOB_CONFIG) => {
       durationUsRef.current = 0;
+      jobStartRef.current = performance.now();
+      stageRef.current = "processing";
+      teleRef.current = { ...INITIAL_TELEMETRY };
       setJob((j) => ({ ...INITIAL_JOB, status: "processing", faces: j.faces }));
       workerRef.current?.postMessage(
         { type: "blurSelected", file, config, keepIds } satisfies MainToWorker,

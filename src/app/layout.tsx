@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { Shell } from "@/components/Shell";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { Analytics } from "@/components/analytics/Analytics";
 import {
   BRAND_MAGENTA,
   DEFAULT_DESCRIPTION,
@@ -70,6 +71,7 @@ export default function RootLayout({
       <body>
         <Shell>{children}</Shell>
         <JsonLd data={[organizationLd, websiteLd]} />
+        <Analytics />
       </body>
     </html>
   );
