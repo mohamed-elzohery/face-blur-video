@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePipeline } from "@/hooks/usePipeline";
+import { useWakeLock } from "@/hooks/useWakeLock";
 import { DEFAULT_JOB_CONFIG, type BlurStyle, type JobConfig } from "@/lib/types";
 import { engineForReport } from "@/lib/capabilities";
 import { Button } from "@/components/ui/Button";
@@ -19,6 +20,7 @@ import { setStage } from "@/lib/stageStore";
 export default function App() {
   const { report, status, modelStatus, modelProgress, job, start, scan, blurSelected, cancel, reset } =
     usePipeline();
+  useWakeLock(job.status === "scanning" || job.status === "processing");
   const [file, setFile] = useState<File | null>(null);
   const [config, setConfig] = useState<JobConfig>(DEFAULT_JOB_CONFIG);
   const originalUrlRef = useRef<string | null>(null);

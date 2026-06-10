@@ -1,16 +1,20 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 export function ProgressRing({
   value = 0,
   size = 160,
   stroke = 10,
   label,
+  sublabel,
   className = "",
 }: {
   value?: number;
   size?: number;
   stroke?: number;
   label?: string;
+  sublabel?: ReactNode;
   className?: string;
 }) {
   const pct = Math.max(0, Math.min(100, value));
@@ -69,6 +73,17 @@ export function ProgressRing({
         </span>
         {label ? (
           <span style={{ font: "var(--text-caption)", color: "var(--muted-foreground)" }}>{label}</span>
+        ) : null}
+        {sublabel ? (
+          <span
+            style={{
+              font: "var(--text-caption)",
+              color: "var(--muted-foreground)",
+              fontFeatureSettings: '"tnum" 1',
+            }}
+          >
+            {sublabel}
+          </span>
         ) : null}
       </div>
     </div>

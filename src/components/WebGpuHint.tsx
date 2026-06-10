@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, Copy, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/IconButton";
 
 const FLAG = "chrome://flags/#enable-unsafe-webgpu";
 
@@ -37,17 +38,21 @@ export function WebGpuHint() {
       <div
         style={{
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-start",
           justifyContent: "space-between",
           gap: "var(--space-3)",
         }}
       >
-        <h2 style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-          <Zap size={18} /> Make processing much faster
+        <h2
+          className="webgpu-hint__title"
+          style={{ display: "flex", alignItems: "flex-start", gap: "var(--space-2)" }}
+        >
+          <Zap size={22} style={{ flexShrink: 0, marginTop: "0.1em" }} />
+          <span>Make processing much faster</span>
         </h2>
-        <Button variant="ghost" size="sm" iconLeft={<X size={14} />} onClick={() => setDismissed(true)}>
-          Dismiss
-        </Button>
+        <IconButton variant="ghost" size="sm" label="Dismiss" onClick={() => setDismissed(true)}>
+          <X size={16} />
+        </IconButton>
       </div>
       <p>
         Your browser has WebGPU turned off for this device&rsquo;s GPU, so processing runs on the CPU
@@ -64,17 +69,16 @@ export function WebGpuHint() {
           gap: "var(--space-2)",
         }}
       >
-        <li style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap" }}>
-          <span>
-            Open <code>{FLAG}</code>
-          </span>
+        <li style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+          <span>Open this flag in a new browser tab:</span>
+          <code style={{ wordBreak: "break-all" }}>{FLAG}</code>
           <Button
-            variant="outline"
+            variant="primary"
             size="sm"
-            iconLeft={copied ? <Check size={13} /> : <Copy size={13} />}
+            iconLeft={copied ? <Check size={14} /> : <Copy size={14} />}
             onClick={copy}
           >
-            {copied ? "Copied" : "Copy"}
+            {copied ? "Copied — now paste it into a new tab" : "Copy flag link"}
           </Button>
         </li>
         <li>
