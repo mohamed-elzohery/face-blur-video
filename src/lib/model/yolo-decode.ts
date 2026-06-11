@@ -1,6 +1,5 @@
 import type { ScoredBox } from "@/lib/types";
 import { iou } from "@/lib/coords";
-import { isPlausibleFaceGeometry } from "./face-geometry";
 
 const REG_MAX = 16;
 const NUM_KPS = 5;
@@ -98,5 +97,5 @@ export function nmsYolo(dets: YoloDetection[], iouThreshold: number, maxOut = 64
     }
     if (!overlaps) kept.push(cand);
   }
-  return kept.filter((d) => isPlausibleFaceGeometry(d, d.kps));
+  return kept;
 }
