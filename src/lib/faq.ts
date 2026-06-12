@@ -22,6 +22,10 @@ export const FAQ: FaqItem[] = [
     a: "Yes. Because nothing is uploaded or stored on a server and all processing happens locally on your device, there is no personal data to share.",
   },
   {
+    q: "Can SmartBlur blur the background of a video?",
+    a: "Yes. Pick “Blur background” and SmartBlur keeps people sharp while blurring everything behind them — from a light bokeh look to a full privacy blur. It uses the open-source RobustVideoMatting model and runs locally in your browser, like everything else.",
+  },
+  {
     q: "Will the blurred video have a watermark?",
     a: "No. There is no watermark and no quality loss — you get a clean MP4 at the original resolution.",
   },

@@ -3,6 +3,8 @@ export type DetectorEngine = "yunet" | "yolo";
 export type BlurBackend = "webgpu" | "webgl2";
 export type DetectorEP = "webgpu" | "wasm";
 export type CapabilityTier = "webgpu" | "webgl2" | "unsupported";
+export type BlurMode = "faces" | "background";
+export type ModelKind = "detector" | "matting";
 
 export const H264_MAIN = "avc1.4d0034";
 export const H264_BASELINE = "avc1.42001f";
@@ -68,6 +70,7 @@ export interface FaceMeta {
 }
 
 export interface JobConfig {
+  mode: BlurMode;
   style: BlurStyle;
   density: number;
   keepAudio: boolean;
@@ -84,6 +87,7 @@ export const STYLE_CODE: Record<BlurStyle, number> = {
 };
 
 export const DEFAULT_JOB_CONFIG: JobConfig = {
+  mode: "faces",
   style: "gaussian",
   density: 0.6,
   keepAudio: true,
@@ -94,7 +98,7 @@ export const DEFAULT_JOB_CONFIG: JobConfig = {
 
 export type MainToWorker =
   | { type: "probe" }
-  | { type: "preload"; engine?: DetectorEngine }
+  | { type: "preload"; engine?: DetectorEngine; matting?: boolean }
   | { type: "start"; file: File; config: JobConfig }
   | { type: "scan"; file: File; config: JobConfig }
   | { type: "blurSelected"; file: File; config: JobConfig; keepIds: number[] }
@@ -102,8 +106,8 @@ export type MainToWorker =
 
 export type WorkerToMain =
   | { type: "capabilities"; features: RawFeatures }
-  | { type: "modelProgress"; loaded: number; total: number }
-  | { type: "modelsReady" }
+  | { type: "modelProgress"; loaded: number; total: number; model: ModelKind }
+  | { type: "modelsReady"; model: ModelKind }
   | {
       type: "scanStarted";
       durationUs: number;

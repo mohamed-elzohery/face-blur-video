@@ -2,8 +2,10 @@ import { probeFeatures } from "@/lib/capabilities";
 import type { MainToWorker, WorkerToMain } from "@/lib/types";
 import { PipelineError } from "./errors";
 import { runPipeline } from "./pipeline";
+import { runBackgroundPipeline } from "./backgroundPipeline";
 import { preloadYoloSession } from "./yolo-detector";
 import { preloadYuNetSession } from "./detector";
+import { preloadRvmSession } from "./matting";
 import { runAnalyze } from "./analyze";
 import { runRenderFromPlan } from "./renderFromPlan";
 import { sameSource, sourceIdentity, type AnalyzedPlan } from "./renderPlan";
@@ -44,7 +46,9 @@ ctx.onmessage = async (e: MessageEvent<MainToWorker>) => {
     }
     case "preload": {
       try {
-        if (msg.engine === "yunet") {
+        if (msg.matting) {
+          await preloadRvmSession((m, t) => post(m, t));
+        } else if (msg.engine === "yunet") {
           await preloadYuNetSession((m, t) => post(m, t));
         } else {
           await preloadYoloSession((m, t) => post(m, t));
@@ -56,14 +60,18 @@ ctx.onmessage = async (e: MessageEvent<MainToWorker>) => {
           msg: `Model preload failed: ${err instanceof Error ? err.message : err}`,
         });
       }
-      post({ type: "modelsReady" });
+      post({ type: "modelsReady", model: msg.matting ? "matting" : "detector" });
       break;
     }
     case "start": {
       cancel = { cancelled: false };
       analyzedPlan = null;
       try {
-        await runPipeline(msg.file, msg.config, (m, t) => post(m, t), cancel);
+        if (msg.config.mode === "background") {
+          await runBackgroundPipeline(msg.file, msg.config, (m, t) => post(m, t), cancel);
+        } else {
+          await runPipeline(msg.file, msg.config, (m, t) => post(m, t), cancel);
+        }
       } catch (err) {
         post(toError(err));
       }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Clock, Film, ScanFace, Shield, SlidersHorizontal } from "lucide-react";
+import { Aperture, ArrowLeft, ArrowRight, Clock, Film, ScanFace, Shield, SlidersHorizontal } from "lucide-react";
 import type { BlurStyle } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -31,6 +31,8 @@ export function ChooseMode({
   setKeepAudio,
   onBack,
   onBlurAll,
+  onBlurBackground,
+  onPreloadBackground,
   onSelect,
 }: {
   file: File;
@@ -43,9 +45,11 @@ export function ChooseMode({
   setKeepAudio: (v: boolean) => void;
   onBack: () => void;
   onBlurAll: () => void;
+  onBlurBackground: () => void;
+  onPreloadBackground: () => void;
   onSelect: () => void;
 }) {
-  const [mode, setMode] = useState<"all" | "select">("all");
+  const [mode, setMode] = useState<"all" | "select" | "background">("all");
 
   return (
     <div className="sb-choose">
@@ -72,6 +76,21 @@ export function ChooseMode({
             description="Runs detection once and blurs every face it finds."
             selected={mode === "all"}
             onClick={() => setMode("all")}
+          />
+          <OptionCard
+            icon={<Aperture size={22} />}
+            title="Blur background"
+            badge={
+              <Badge variant="primary" style={{ marginLeft: 8 }}>
+                New
+              </Badge>
+            }
+            description="Keeps people sharp and blurs everything behind them."
+            selected={mode === "background"}
+            onClick={() => {
+              setMode("background");
+              onPreloadBackground();
+            }}
           />
           <OptionCard
             icon={<ScanFace size={22} />}
@@ -139,9 +158,15 @@ export function ChooseMode({
             variant="primary"
             fullWidth
             iconRight={<ArrowRight size={16} />}
-            onClick={() => (mode === "all" ? onBlurAll() : onSelect())}
+            onClick={() =>
+              mode === "all" ? onBlurAll() : mode === "background" ? onBlurBackground() : onSelect()
+            }
           >
-            {mode === "all" ? "Blur all faces" : "Continue to selection"}
+            {mode === "all"
+              ? "Blur all faces"
+              : mode === "background"
+                ? "Blur background"
+                : "Continue to selection"}
           </Button>
         </div>
       </div>

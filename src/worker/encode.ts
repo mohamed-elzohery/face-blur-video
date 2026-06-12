@@ -11,8 +11,8 @@ import {
   type Quality,
 } from "mediabunny";
 import { STYLE_CODE, type BlurBackend, type JobConfig } from "@/lib/types";
-import { MIN_BLOCK_PX, blockFracForDensity } from "@/lib/blurMath";
-import type { RendererOptions } from "./blur";
+import { MIN_BLOCK_PX, bgRadiusFracForDensity, blockFracForDensity } from "@/lib/blurMath";
+import type { BgRendererOptions, RendererOptions } from "./blur";
 import type { Cancel, Emit } from "./runtime";
 
 export { MIN_BLOCK_PX, MIN_BLOCK_FRAC, MAX_BLOCK_FRAC } from "@/lib/blurMath";
@@ -26,6 +26,13 @@ export function rendererOptionsFor(config: JobConfig): RendererOptions {
     blockFrac: blockFracForDensity(config.density),
     featherPx: FEATHER_PX,
     style: STYLE_CODE[config.style],
+  };
+}
+
+export function bgRendererOptionsFor(config: JobConfig): BgRendererOptions {
+  return {
+    style: STYLE_CODE[config.style],
+    radiusFrac: bgRadiusFracForDensity(config.density),
   };
 }
 
