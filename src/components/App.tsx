@@ -20,8 +20,21 @@ import { sizeBucket, track } from "@/lib/analytics";
 import { useSessionAnalytics } from "@/hooks/useSessionAnalytics";
 
 export default function App() {
-  const { report, status, modelStatus, modelProgress, job, start, scan, blurSelected, cancel, reset } =
-    usePipeline();
+  const {
+    report,
+    status,
+    modelStatus,
+    modelProgress,
+    mattingStatus,
+    mattingProgress,
+    job,
+    start,
+    scan,
+    blurSelected,
+    preloadMatting,
+    cancel,
+    reset,
+  } = usePipeline();
   useWakeLock(job.status === "scanning" || job.status === "processing");
   useSessionAnalytics(report, status);
   const [file, setFile] = useState<File | null>(null);
@@ -74,8 +87,11 @@ export default function App() {
     setOriginal(null);
   };
 
-  const modelLoading = status !== "unsupported" && status !== "error" && modelStatus !== "ready";
+  const requiredModelsLoading =
+    job.mode === "background" ? mattingStatus !== "ready" : modelStatus !== "ready";
+  const modelLoading = status !== "unsupported" && status !== "error" && requiredModelsLoading;
   const showingModel = !!file && job.status !== "idle" && modelLoading;
+  const loadingProgress = job.mode === "background" ? mattingProgress : modelProgress;
 
   let body: React.ReactNode;
 
@@ -137,11 +153,13 @@ export default function App() {
         setKeepAudio={setKeepAudio}
         onBack={onReset}
         onBlurAll={() => start(file, effectiveConfig)}
+        onBlurBackground={() => start(file, { ...effectiveConfig, mode: "background" })}
+        onPreloadBackground={preloadMatting}
         onSelect={() => scan(file, effectiveConfig)}
       />
     );
   } else if (modelLoading) {
-    body = <ModelLoading progress={modelProgress} checking={status === "probing"} />;
+    body = <ModelLoading progress={loadingProgress} checking={status === "probing"} />;
   } else if (job.status === "scanning") {
     body = <Processing mode="scanning" progress={job.scanProgress} onCancel={cancel} />;
   } else if (job.status === "selecting" && file) {

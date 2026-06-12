@@ -56,6 +56,17 @@ export function HomeContent() {
           Import MP4, MOV or WebM and export an MP4 at the original quality. SmartBlur works in the
           latest Chrome, Edge, Safari 26+ and Firefox on desktop.
         </p>
+        <p>
+          Background blur is powered by{" "}
+          <a
+            href="https://github.com/PeterL1n/RobustVideoMatting"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            RobustVideoMatting
+          </a>{" "}
+          (GPL-3.0), running entirely on your device.
+        </p>
       </div>
 
       <div className="sb-seo__block">

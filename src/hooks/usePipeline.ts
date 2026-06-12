@@ -6,6 +6,7 @@ import { durationBucket, sizeBucket, track } from "@/lib/analytics";
 import {
   DEFAULT_JOB_CONFIG,
   type BlurBackend,
+  type BlurMode,
   type CapabilityReport,
   type DetectorEP,
   type FaceMeta,
@@ -46,6 +47,7 @@ const INITIAL_TELEMETRY: JobTelemetry = {
 
 export type PipelineStatus = "probing" | "ready" | "unsupported" | "error";
 export type ModelStatus = "loading" | "ready" | "error";
+export type MattingStatus = "idle" | "loading" | "ready";
 export type JobStatus =
   | "idle"
   | "scanning"
@@ -64,6 +66,7 @@ export interface JobResult {
 
 export interface JobState {
   status: JobStatus;
+  mode: BlurMode;
   progress: number;
   scanProgress: number;
   framesDone: number;
@@ -82,6 +85,7 @@ export interface JobState {
 
 const INITIAL_JOB: JobState = {
   status: "idle",
+  mode: "faces",
   progress: 0,
   scanProgress: 0,
   framesDone: 0,
@@ -103,10 +107,13 @@ export interface UsePipeline {
   status: PipelineStatus;
   modelStatus: ModelStatus;
   modelProgress: number;
+  mattingStatus: MattingStatus;
+  mattingProgress: number;
   job: JobState;
   start: (file: File, config?: JobConfig) => void;
   scan: (file: File, config?: JobConfig) => void;
   blurSelected: (file: File, keepIds: number[], config?: JobConfig) => void;
+  preloadMatting: () => void;
   cancel: () => void;
   reset: () => void;
 }
@@ -117,7 +124,7 @@ export function usePipeline(): UsePipeline {
   const resultUrlRef = useRef<string | null>(null);
   const thumbsRef = useRef<ImageBitmap[]>([]);
   const jobStartRef = useRef(0);
-  const jobModeRef = useRef<"blur_all" | "select">("blur_all");
+  const jobModeRef = useRef<"blur_all" | "select" | "background">("blur_all");
   const stageRef = useRef<"scanning" | "processing">("processing");
   const teleRef = useRef<JobTelemetry>({ ...INITIAL_TELEMETRY });
 
@@ -125,6 +132,8 @@ export function usePipeline(): UsePipeline {
   const [status, setStatus] = useState<PipelineStatus>("probing");
   const [modelStatus, setModelStatus] = useState<ModelStatus>("loading");
   const [modelProgress, setModelProgress] = useState(0);
+  const [mattingStatus, setMattingStatus] = useState<MattingStatus>("idle");
+  const [mattingProgress, setMattingProgress] = useState(0);
   const [job, setJob] = useState<JobState>(INITIAL_JOB);
 
   const closeThumbs = useCallback(() => {
@@ -155,12 +164,19 @@ export function usePipeline(): UsePipeline {
           break;
         }
         case "modelProgress": {
-          setModelProgress(msg.total > 0 ? Math.min(1, msg.loaded / msg.total) : 0);
+          const progress = msg.total > 0 ? Math.min(1, msg.loaded / msg.total) : 0;
+          if (msg.model === "matting") setMattingProgress(progress);
+          else setModelProgress(progress);
           break;
         }
         case "modelsReady": {
-          setModelProgress(1);
-          setModelStatus("ready");
+          if (msg.model === "matting") {
+            setMattingProgress(1);
+            setMattingStatus("ready");
+          } else {
+            setModelProgress(1);
+            setModelStatus("ready");
+          }
           break;
         }
         case "scanStarted": {
@@ -293,6 +309,11 @@ export function usePipeline(): UsePipeline {
     };
   }, [closeThumbs]);
 
+  const preloadMatting = useCallback(() => {
+    setMattingStatus((prev) => (prev === "ready" ? prev : "loading"));
+    workerRef.current?.postMessage({ type: "preload", matting: true } satisfies MainToWorker);
+  }, []);
+
   const start = useCallback((file: File, config: JobConfig = DEFAULT_JOB_CONFIG) => {
     if (resultUrlRef.current) {
       URL.revokeObjectURL(resultUrlRef.current);
@@ -300,18 +321,20 @@ export function usePipeline(): UsePipeline {
     }
     closeThumbs();
     durationUsRef.current = 0;
-    jobModeRef.current = "blur_all";
+    const mode = config.mode === "background" ? "background" : "blur_all";
+    jobModeRef.current = mode;
     jobStartRef.current = performance.now();
     stageRef.current = "processing";
     teleRef.current = { ...INITIAL_TELEMETRY };
     track("process_started", {
-      mode: "blur_all",
+      mode,
       size_bucket: sizeBucket(file.size),
       ...configParams(config),
     });
-    setJob({ ...INITIAL_JOB, status: "processing" });
+    if (config.mode === "background") preloadMatting();
+    setJob({ ...INITIAL_JOB, status: "processing", mode: config.mode });
     workerRef.current?.postMessage({ type: "start", file, config } satisfies MainToWorker);
-  }, [closeThumbs]);
+  }, [closeThumbs, preloadMatting]);
 
   const scan = useCallback((file: File, config: JobConfig = DEFAULT_JOB_CONFIG) => {
     if (resultUrlRef.current) {
@@ -366,10 +389,13 @@ export function usePipeline(): UsePipeline {
     status,
     modelStatus,
     modelProgress,
+    mattingStatus,
+    mattingProgress,
     job,
     start,
     scan,
     blurSelected,
+    preloadMatting,
     cancel,
     reset,
   };

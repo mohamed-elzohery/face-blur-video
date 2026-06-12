@@ -11,7 +11,7 @@ export interface WebGpuRendererOptions {
   style: number;
 }
 
-async function probeExternalImageCopy(device: GPUDevice): Promise<boolean> {
+export async function probeExternalImageCopy(device: GPUDevice): Promise<boolean> {
   try {
     const source = new OffscreenCanvas(4, 4);
     const ctx = source.getContext("2d");

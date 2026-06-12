@@ -82,7 +82,9 @@ function ensureYoloSession(
 }
 
 export async function preloadYoloSession(emit?: Emit): Promise<void> {
-  await ensureYoloSession((loaded, total) => emit?.({ type: "modelProgress", loaded, total }));
+  await ensureYoloSession((loaded, total) =>
+    emit?.({ type: "modelProgress", loaded, total, model: "detector" }),
+  );
 }
 
 export class YoloFaceOnnxDetector implements FaceDetector {

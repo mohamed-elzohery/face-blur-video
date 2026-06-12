@@ -161,7 +161,9 @@ function ensureYuNetSession(
 }
 
 export async function preloadYuNetSession(emit?: Emit): Promise<void> {
-  await ensureYuNetSession((loaded, total) => emit?.({ type: "modelProgress", loaded, total }));
+  await ensureYuNetSession((loaded, total) =>
+    emit?.({ type: "modelProgress", loaded, total, model: "detector" }),
+  );
 }
 
 export class YuNetOnnxDetector implements FaceDetector {
