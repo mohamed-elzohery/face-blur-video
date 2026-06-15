@@ -6,6 +6,7 @@ import {
   type DetectorEngine,
   type RawFeatures,
 } from "./types";
+import { isMobileWebKit } from "./platform";
 
 export function engineForReport(report: CapabilityReport): DetectorEngine {
   return report.webgpu ? "yolo" : "yunet";
@@ -29,6 +30,7 @@ async function isVideoEncodeSupported(codec: string): Promise<boolean> {
 
 async function probeWebGPU(): Promise<boolean> {
   try {
+    if (isMobileWebKit()) return false;
     if (typeof navigator === "undefined" || !("gpu" in navigator) || !navigator.gpu) return false;
     const adapter = await navigator.gpu.requestAdapter();
     return adapter != null;
@@ -62,7 +64,10 @@ export async function probeFeatures(): Promise<RawFeatures> {
   const storage = typeof navigator !== "undefined" ? navigator.storage : undefined;
 
   const webgpuApiPresent =
-    typeof navigator !== "undefined" && "gpu" in navigator && !!navigator.gpu;
+    !isMobileWebKit() &&
+    typeof navigator !== "undefined" &&
+    "gpu" in navigator &&
+    !!navigator.gpu;
 
   return {
     webcodecs,

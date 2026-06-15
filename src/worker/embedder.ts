@@ -1,8 +1,9 @@
-import * as ort from "onnxruntime-web/webgpu";
+import type * as Ort from "onnxruntime-web";
 import { loadSFaceModel } from "@/lib/modelStore";
 import { ALIGNED_SIZE } from "@/lib/model/face-align";
 import { logger } from "@/lib/log";
 import { ORT_SESSION_OPTIONS, configureOrtEnv } from "./detector";
+import { loadOrt, type OrtModule } from "./ort";
 
 export interface FaceEmbedder {
   embed(aligned: ImageData): Promise<Float32Array>;
@@ -12,13 +13,15 @@ export interface FaceEmbedder {
 const PLANE = ALIGNED_SIZE * ALIGNED_SIZE;
 
 export class SFaceOnnxEmbedder implements FaceEmbedder {
-  private readonly session: ort.InferenceSession;
+  private readonly ort: OrtModule;
+  private readonly session: Ort.InferenceSession;
   private readonly inputName: string;
   private readonly outputName: string;
   private readonly input: Float32Array;
 
   static async create(): Promise<SFaceOnnxEmbedder> {
-    configureOrtEnv();
+    const ort = await loadOrt();
+    await configureOrtEnv();
     const model = await loadSFaceModel();
     const session = await ort.InferenceSession.create(model, {
       executionProviders: ["wasm"],
@@ -30,10 +33,11 @@ export class SFaceOnnxEmbedder implements FaceEmbedder {
     } catch (err) {
       logger.warn(`SFace warmup run failed: ${err instanceof Error ? err.message : err}`);
     }
-    return new SFaceOnnxEmbedder(session);
+    return new SFaceOnnxEmbedder(ort, session);
   }
 
-  private constructor(session: ort.InferenceSession) {
+  private constructor(ort: OrtModule, session: Ort.InferenceSession) {
+    this.ort = ort;
     this.session = session;
     this.inputName = session.inputNames[0];
     this.outputName = session.outputNames[0];
@@ -48,7 +52,7 @@ export class SFaceOnnxEmbedder implements FaceEmbedder {
       this.input[2 * PLANE + p] = rgba[i];
     }
 
-    const tensor = new ort.Tensor("float32", this.input, [1, 3, ALIGNED_SIZE, ALIGNED_SIZE]);
+    const tensor = new this.ort.Tensor("float32", this.input, [1, 3, ALIGNED_SIZE, ALIGNED_SIZE]);
     const result = await this.session.run({ [this.inputName]: tensor });
     const raw = result[this.outputName].data as Float32Array;
 

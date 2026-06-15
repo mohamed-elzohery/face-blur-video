@@ -12,6 +12,7 @@ import {
 } from "mediabunny";
 import { STYLE_CODE, type BlurBackend, type JobConfig } from "@/lib/types";
 import { MIN_BLOCK_PX, blockFracForDensity } from "@/lib/blurMath";
+import { isMobileWebKit } from "@/lib/platform";
 import type { RendererOptions } from "./blur";
 import type { Cancel, Emit } from "./runtime";
 
@@ -56,7 +57,7 @@ export function formatBitrate(bitrate: number | Quality): string {
 
 export async function detectBlurBackend(): Promise<BlurBackend> {
   try {
-    if ("gpu" in navigator && navigator.gpu) {
+    if (!isMobileWebKit() && "gpu" in navigator && navigator.gpu) {
       const adapter = await navigator.gpu.requestAdapter();
       if (adapter) return "webgpu";
     }

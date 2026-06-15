@@ -1,4 +1,4 @@
-import * as ort from "onnxruntime-web/webgpu";
+import type * as Ort from "onnxruntime-web";
 import type { VideoSample } from "mediabunny";
 import type { DetectedFace, DetectorEP } from "@/lib/types";
 import {
@@ -17,6 +17,7 @@ import {
   type DetectorTiming,
   type FaceDetector,
 } from "./detector";
+import { loadOrt, type OrtModule } from "./ort";
 import { logger } from "@/lib/log";
 import type { Emit } from "./runtime";
 
@@ -25,7 +26,8 @@ const LETTERBOX_FILL = "rgb(114,114,114)";
 const NMS_IOU = 0.45;
 
 interface WarmYolo {
-  session: ort.InferenceSession;
+  ort: OrtModule;
+  session: Ort.InferenceSession;
   ep: DetectorEP;
 }
 
@@ -36,7 +38,8 @@ async function createYoloSession(
   onPhase?: (loaded: number, total: number) => void,
 ): Promise<WarmYolo> {
   const total = 3;
-  configureOrtEnv();
+  const ort = await loadOrt();
+  await configureOrtEnv();
   const ep = await resolveDetectorEP();
   onPhase?.(1, total);
   const model = await loadYoloModel();
@@ -46,12 +49,16 @@ async function createYoloSession(
     executionProviders: executionProvidersFor(ep),
     ...ORT_SESSION_OPTIONS,
   });
-  await warmupSession(session, YOLO_INPUT_SIZE);
+  await warmupSession(ort, session, YOLO_INPUT_SIZE);
   onPhase?.(3, total);
-  return { session, ep };
+  return { ort, session, ep };
 }
 
-async function warmupSession(session: ort.InferenceSession, size: number): Promise<void> {
+async function warmupSession(
+  ort: OrtModule,
+  session: Ort.InferenceSession,
+  size: number,
+): Promise<void> {
   try {
     const warm = new ort.Tensor("float32", new Float32Array(3 * size * size), [1, 3, size, size]);
     await session.run({ [session.inputNames[0]]: warm });
@@ -88,7 +95,8 @@ export async function preloadYoloSession(emit?: Emit): Promise<void> {
 export class YoloFaceOnnxDetector implements FaceDetector {
   readonly ep: DetectorEP;
 
-  private readonly session: ort.InferenceSession;
+  private readonly ort: OrtModule;
+  private readonly session: Ort.InferenceSession;
   private readonly ownsSession: boolean;
   private readonly layout: LetterboxLayout;
   private readonly encodeW: number;
@@ -109,17 +117,19 @@ export class YoloFaceOnnxDetector implements FaceDetector {
     encodeH: number,
     inputSize: number = YOLO_INPUT_SIZE,
   ): Promise<YoloFaceOnnxDetector> {
-    const { session, ep } = await ensureYoloSession();
-    return new YoloFaceOnnxDetector(session, ep, encodeW, encodeH, inputSize);
+    const { ort, session, ep } = await ensureYoloSession();
+    return new YoloFaceOnnxDetector(ort, session, ep, encodeW, encodeH, inputSize);
   }
 
   private constructor(
-    session: ort.InferenceSession,
+    ort: OrtModule,
+    session: Ort.InferenceSession,
     ep: DetectorEP,
     encodeW: number,
     encodeH: number,
     inputSize: number,
   ) {
+    this.ort = ort;
     this.session = session;
     this.ownsSession = false;
     this.ep = ep;
@@ -151,7 +161,7 @@ export class YoloFaceOnnxDetector implements FaceDetector {
       this.input[2 * this.inputArea + p] = rgba[i + 2] / 255;
     }
 
-    const tensor = new ort.Tensor("float32", this.input, [1, 3, size, size]);
+    const tensor = new this.ort.Tensor("float32", this.input, [1, 3, size, size]);
     const runStart = performance.now();
     this.prepMs += runStart - prepStart;
     const result = await this.session.run({ [this.inputName]: tensor });

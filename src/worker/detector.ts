@@ -1,4 +1,4 @@
-import * as ort from "onnxruntime-web/webgpu";
+import type * as Ort from "onnxruntime-web";
 import type { VideoSample } from "mediabunny";
 import type { DetectedFace, DetectorEP } from "@/lib/types";
 import {
@@ -11,6 +11,8 @@ import { decodeYuNet, nms } from "@/lib/model/yunet-decode";
 import { isPlausibleFaceGeometry } from "@/lib/model/face-geometry";
 import { loadYuNetModel } from "@/lib/modelStore";
 import { logger } from "@/lib/log";
+import { isMobileWebKit } from "@/lib/platform";
+import { loadOrt, type OrtModule } from "./ort";
 import { THREAD_CAP, pickNumThreads } from "./ortThreads";
 import type { Emit } from "./runtime";
 
@@ -40,8 +42,9 @@ export function resolvedNumThreads(): number {
 }
 
 let envConfigured = false;
-export function configureOrtEnv(): void {
+export async function configureOrtEnv(): Promise<void> {
   if (envConfigured) return;
+  const ort = await loadOrt();
   ort.env.wasm.wasmPaths = "/ort/";
   ort.env.wasm.simd = true;
   const isolated = typeof crossOriginIsolated !== "undefined" && crossOriginIsolated === true;
@@ -58,15 +61,38 @@ let webgpuChecked = false;
 let webgpuDevice: GPUDevice | null = null;
 let webgpuAdapterOk = false;
 
+const WEBGPU_INIT_TIMEOUT_MS = 6000;
+
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`WebGPU ${label} timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([p.finally(() => clearTimeout(timer)), timeout]);
+}
+
 export async function ensureWebGpuDevice(): Promise<GPUDevice | null> {
   if (webgpuChecked) return webgpuDevice;
   webgpuChecked = true;
+  if (isMobileWebKit()) {
+    logger.info("WebGPU disabled on mobile WebKit; detector runs on the wasm execution provider.");
+    return webgpuDevice;
+  }
   try {
     if (typeof navigator !== "undefined" && "gpu" in navigator && navigator.gpu) {
-      const adapter = await navigator.gpu.requestAdapter();
+      const adapter = await withTimeout(
+        navigator.gpu.requestAdapter(),
+        WEBGPU_INIT_TIMEOUT_MS,
+        "requestAdapter",
+      );
       webgpuAdapterOk = adapter != null;
       if (adapter) {
-        const device = await adapter.requestDevice();
+        const device = await withTimeout(
+          adapter.requestDevice(),
+          WEBGPU_INIT_TIMEOUT_MS,
+          "requestDevice",
+        );
+        const ort = await loadOrt();
         ort.env.webgpu.device = device;
         webgpuDevice = device;
       }
@@ -105,14 +131,19 @@ export const ORT_SESSION_OPTIONS = {
 const YUNET_WARMUP_SIZE = 480;
 
 interface WarmYuNet {
-  session: ort.InferenceSession;
+  ort: OrtModule;
+  session: Ort.InferenceSession;
   ep: DetectorEP;
 }
 
 let warmYuNet: WarmYuNet | null = null;
 let warmYuNetPromise: Promise<WarmYuNet> | null = null;
 
-async function warmupYuNetSession(session: ort.InferenceSession, size: number): Promise<void> {
+async function warmupYuNetSession(
+  ort: OrtModule,
+  session: Ort.InferenceSession,
+  size: number,
+): Promise<void> {
   try {
     const warm = new ort.Tensor("float32", new Float32Array(3 * size * size), [1, 3, size, size]);
     await session.run({ [session.inputNames[0]]: warm });
@@ -125,7 +156,8 @@ async function createYuNetSession(
   onPhase?: (loaded: number, total: number) => void,
 ): Promise<WarmYuNet> {
   const total = 3;
-  configureOrtEnv();
+  const ort = await loadOrt();
+  await configureOrtEnv();
   const ep = await resolveDetectorEP();
   onPhase?.(1, total);
   const model = await loadYuNetModel();
@@ -134,9 +166,9 @@ async function createYuNetSession(
     executionProviders: executionProvidersFor(ep),
     ...ORT_SESSION_OPTIONS,
   });
-  await warmupYuNetSession(session, YUNET_WARMUP_SIZE);
+  await warmupYuNetSession(ort, session, YUNET_WARMUP_SIZE);
   onPhase?.(3, total);
-  return { session, ep };
+  return { ort, session, ep };
 }
 
 function ensureYuNetSession(
@@ -167,7 +199,8 @@ export async function preloadYuNetSession(emit?: Emit): Promise<void> {
 export class YuNetOnnxDetector implements FaceDetector {
   readonly ep: DetectorEP;
 
-  private readonly session: ort.InferenceSession;
+  private readonly ort: OrtModule;
+  private readonly session: Ort.InferenceSession;
   private readonly ownsSession: boolean = false;
   private readonly layout: DetectLayout;
   private readonly encodeW: number;
@@ -186,17 +219,19 @@ export class YuNetOnnxDetector implements FaceDetector {
     encodeH: number,
     inputLongSide: number = DETECT_LONG_SIDE,
   ): Promise<YuNetOnnxDetector> {
-    const { session, ep } = await ensureYuNetSession();
-    return new YuNetOnnxDetector(session, ep, encodeW, encodeH, inputLongSide);
+    const { ort, session, ep } = await ensureYuNetSession();
+    return new YuNetOnnxDetector(ort, session, ep, encodeW, encodeH, inputLongSide);
   }
 
   private constructor(
-    session: ort.InferenceSession,
+    ort: OrtModule,
+    session: Ort.InferenceSession,
     ep: DetectorEP,
     encodeW: number,
     encodeH: number,
     inputLongSide: number,
   ) {
+    this.ort = ort;
     this.session = session;
     this.ep = ep;
     this.encodeW = encodeW;
@@ -225,7 +260,7 @@ export class YuNetOnnxDetector implements FaceDetector {
       this.input[2 * plane + p] = rgba[i];
     }
 
-    const tensor = new ort.Tensor("float32", this.input, [1, 3, detH, detW]);
+    const tensor = new this.ort.Tensor("float32", this.input, [1, 3, detH, detW]);
     const runStart = performance.now();
     this.prepMs += runStart - prepStart;
     const result = await this.session.run({ [this.inputName]: tensor });
