@@ -1,5 +1,6 @@
 import type { VideoSample } from "mediabunny";
 import type { JobConfig } from "@/lib/types";
+import { logger } from "@/lib/log";
 import type { BlurRenderer } from "./blur/types";
 import { DEFAULT_SENSITIVITY, type FaceDetector } from "./detector";
 import type { KalmanTracker } from "./tracker";
@@ -24,17 +25,22 @@ export class FrameProcessor {
   ) {}
 
   async process(sample: VideoSample): Promise<void> {
+    const first = this.frameIndex === 0;
     this.tracker.predict();
     if (this.frameIndex % this.config.detectEveryN === 0) {
+      if (first) logger.info("diag: frame0 detect start");
       const t0 = performance.now();
       const detections = await this.detector.detect(sample, DEFAULT_SENSITIVITY);
       this.detectMs += performance.now() - t0;
       this.detectCount += 1;
       this.tracker.update(detections);
+      if (first) logger.info(`diag: frame0 detect done (${detections.length} faces)`);
     }
     const r0 = performance.now();
+    if (first) logger.info("diag: frame0 render start");
     await this.renderer.render(sample, this.tracker.boxes());
     this.renderMs += performance.now() - r0;
+    if (first) logger.info("diag: frame0 render done");
     this.frameIndex += 1;
   }
 

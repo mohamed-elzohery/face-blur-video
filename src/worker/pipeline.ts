@@ -45,6 +45,7 @@ export async function runPipeline(
 ): Promise<void> {
   const src = await openSource(file);
   const { videoTrack, audioTrack, displayWidth, displayHeight, durationUs, startOffsetSec } = src;
+  logger.info(`diag: source opened ${displayWidth}x${displayHeight} durUs=${durationUs}`);
 
   const requestedBackend = await detectBlurBackend();
   const { renderer, backend: blurBackend } = await createRenderer(
@@ -53,6 +54,7 @@ export async function runPipeline(
     displayHeight,
     rendererOptionsFor(config),
   );
+  logger.info(`diag: renderer ready backend=${blurBackend}`);
 
   const detectLongSide = config.detectLongSide;
 
@@ -70,6 +72,8 @@ export async function runPipeline(
       `Couldn't load the face-detection model: ${err instanceof Error ? err.message : err}`,
     );
   }
+
+  logger.info(`diag: detector ready ep=${detector.ep} engine=${config.engine}`);
 
   const tracker = new KalmanTracker({
     iouMatch: TRACKER_IOU_MATCH,
@@ -127,10 +131,13 @@ export async function runPipeline(
       break;
     }
 
+    if (framesDone === 0) logger.info("diag: first sample decoded");
     await processor.process(sample);
     const encStart = performance.now();
+    if (framesDone === 0) logger.info("diag: first frame encode start");
     await videoSource.add(Math.max(0, sample.timestamp - startOffsetSec), sample.duration);
     encodeMs += performance.now() - encStart;
+    if (framesDone === 0) logger.info("diag: first frame encoded");
     const currentTimeUs = sample.microsecondTimestamp;
     sample.close();
     framesDone++;

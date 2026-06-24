@@ -161,12 +161,15 @@ async function createYuNetSession(
   const ep = await resolveDetectorEP();
   onPhase?.(1, total);
   const model = await loadYuNetModel();
+  logger.info(`diag: yunet model loaded bytes=${model.byteLength}`);
   onPhase?.(2, total);
   const session = await ort.InferenceSession.create(model, {
     executionProviders: executionProvidersFor(ep),
     ...ORT_SESSION_OPTIONS,
   });
+  logger.info(`diag: yunet session created ep=${ep} providers=${executionProvidersFor(ep).join("+")}`);
   await warmupYuNetSession(ort, session, YUNET_WARMUP_SIZE);
+  logger.info("diag: yunet warmup done");
   onPhase?.(3, total);
   return { ort, session, ep };
 }
